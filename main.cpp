@@ -7,17 +7,19 @@ bool debug = true;
  
 //
 typedef enum {
-	START,
-	FIGHT,
-	WIN,
-	LOSE,
+	START,//タイトル
+	FIGHT,//戦い
+	WIN,//勝利
+	LOSE,//負け
 } GAME_STATE;
 GAME_STATE game_state = START;
 
+//攻撃の種類
 enum AttackType {
-	MELEE,
-	RANGE,
+	MELEE,//近接攻撃
+	RANGE,//弾発射
 };
+
 struct Vector2 {
 	float x;
 	float y;
@@ -27,23 +29,25 @@ struct Vector2 {
 struct Character {
 	Vector2 pos; // 座標
 	Vector2 vec; //
-	Vector2 dir;
-	int hp;     //
-	int damage; //
-	int invincible_time;
-	float width;
+	Vector2 dir;//これ、もしマウスを使う場合は、dir使う
+	int hp;     //体力
+	int damage; //ダメージ
+	int invincible_time;//無敵時間
+	int shootCooldown;//
+	float width;//サイズ
 	float height;
-	float speed;
-	float dash_speed;
-	bool isDash;
-	bool isAlive;
-	bool isHit;
-	bool isInvincible;
+	float speed;//移動のスピード
+	float dash_speed;//瞬間加速
+	bool isDash;//加速かどうか
+	bool isAlive;//存在かどうか
+	bool isHit;//被弾中かどうか//今まだ使わない
+	bool isInvincible;//無敵かどうか
 };
 
 // player
 struct Player {
 	Character base;
+	
 };
 
 // Boss
@@ -51,18 +55,19 @@ struct Boss {
 	Character base;
 };
 
+//playerとplayerとbossの攻撃の共有宣言
 struct Attack {
-	Vector2 pos;
+	Vector2 pos;// 座標
 	Vector2 vec;
-	AttackType type;
+	AttackType type;//種類
 	int damage;
-	int lifeTime;
-	int waitTime; 
-	float width;
+	int lifeTime;//存在時間
+	int waitTime; //攻撃前の準備時間
+	float width;//サイズ
 	float height;
 	float speed;
-	bool isAlive;
-	bool hasHit;
+	bool isAlive;//存在かどうか
+	bool hasHit;//ビットしたかどうか
 };
 
 Player InitPlayer(float x, float y) {
@@ -73,6 +78,7 @@ Player InitPlayer(float x, float y) {
 	p.base.hp = 100;
 	p.base.damage = 10;
 	p.base.invincible_time = 60;
+	p.base.shootCooldown = 0;
 	p.base.width = 50.0f;
 	p.base.height = 50.0f;
 	p.base.speed = 5;
@@ -103,13 +109,14 @@ Boss InitBoss(float x, float y) {
 	return b;
 }
 
+//近接攻撃
 Attack Attack_Melee(Vector2 pos, Vector2 dir) {
 	Attack m{};
 	m.pos = pos;
 	m.vec = dir;
 	m.type = MELEE;
 	m.damage = 10;
-	m.lifeTime = 30;
+	m.lifeTime = 15;
 	m.waitTime = 15;
 	m.width = 50;
 	m.height = 50;
@@ -121,6 +128,8 @@ Attack Attack_Melee(Vector2 pos, Vector2 dir) {
 	m.pos.y += dir.y * m.height;
 	return m;
 }
+
+//弾発射
 
 Attack Attack_Range(Vector2 pos, Vector2 dir) {
 	Attack r{};
@@ -135,14 +144,17 @@ Attack Attack_Range(Vector2 pos, Vector2 dir) {
 	r.isAlive = false;
 	r.hasHit = false;
 
+	//弾斜め発射スピード正規化
+	 float length = sqrtf(dir.x * dir.x + dir.y * dir.y);
+	if (length > 0) {
+		dir.x /= length;
+		dir.y /= length;
+	}
 	return r;
 
 }
 
-// 当たり判定の
-bool isHit(Vector2& a, float aw, float ah, Vector2& b, float bw, float bh) { return (a.x < b.x + bw && a.x + aw > b.x && a.y < b.y + bh && a.y + ah > b.y); }
-
-// 斜め移動の
+// 共有の斜め移動スピード正規化と画面出てない制定
 void Move(Vector2& pos, Vector2& vec, float width, float height, float speed) {
 	float length = sqrtf(vec.x * vec.x + vec.y * vec.y);
 	if (length > 0) {
@@ -166,7 +178,10 @@ void Move(Vector2& pos, Vector2& vec, float width, float height, float speed) {
 	}
 }
 
-//攻撃
+// 共有の当たり判定の関数（aabb判定）
+bool isHit(Vector2& a, float aw, float ah, Vector2& b, float bw, float bh) { return (a.x < b.x + bw && a.x + aw > b.x && a.y < b.y + bh && a.y + ah > b.y); }
+
+//攻撃の存在時間と画面出てない設定
 void isAttack(Attack& atk) {
 	if (!atk.isAlive) {
 		return;
@@ -184,6 +199,7 @@ void isAttack(Attack& atk) {
 
 	}
 }
+//
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
@@ -225,6 +241,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			// 戦い
 		case FIGHT: {
+			//勝敗条件//
 			if (keys[DIK_DOWN] && !preKeys[DIK_DOWN]) {
 				game_state = WIN;
 			}
@@ -232,7 +249,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				game_state = LOSE;
 			}
 
-			//
+			//player無敵時間の管理(無敵時間関数管理ずっとbug出てくる、まず、このまま使う）
 			if (player.base.isInvincible) {
 				player.base.invincible_time--;
 
@@ -241,7 +258,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 					player.base.invincible_time = 0;
 				}
 			}
-
+			// ボース無敵時間の管理
 			if (boss.base.isInvincible) {
 				boss.base.invincible_time--;
 
@@ -259,15 +276,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				if (keys[DIK_W]) {
 					player.base.vec.y = -1.0f;
 				}
-
 				if (keys[DIK_S]) {
 					player.base.vec.y = 1.0f;
 				}
-
 				if (keys[DIK_A]) {
 					player.base.vec.x = -1.0f;
 				}
-
 				if (keys[DIK_D]) {
 					player.base.vec.x = 1.0f;
 				}
@@ -275,19 +289,32 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 					player.base.dir = player.base.vec;
 				}
 
+				//移動関数使う
+				Move(player.base.pos, player.base.vec, player.base.width, player.base.height, player.base.speed);
+
+				//攻撃の更新管理
+				//近接攻撃
 				if (keys[DIK_J] && !preKeys[DIK_J]) {
 					attack_player = Attack_Melee(player.base.pos, player.base.dir);
 					attack_player.isAlive = true;
 				}
 				
-				if (keys[DIK_K] && !preKeys[DIK_K]) {
+				//弾連続発射
+				if (player.base.shootCooldown > 0) {
+					player.base.shootCooldown--;
+				}
+				if (keys[DIK_K] &&player.base.shootCooldown==0) {
 					attack_player = Attack_Range(player.base.pos, player.base.dir);
 					attack_player.isAlive = true;
-				
+					player.base.shootCooldown = 3;
+				}
 
-				Move(player.base.pos, player.base.vec, player.base.width, player.base.height, player.base.speed);
-
+				//攻撃の関数使う
 				isAttack(attack_player);
+				if (attack_player.isAlive && attack_player.type == MELEE) {
+					attack_player.pos.x = player.base.pos.x + player.base.dir.x * (player.base.width * 0.8f);
+					attack_player.pos.y = player.base.pos.y + player.base.dir.y * (player.base.height * 0.8f);
+				}
 
 
 				// playerとボースの当たり判定
@@ -300,13 +327,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 					}
 				}
 
-				if (attack_player.isAlive && isHit(attack_player.pos, attack_player.width, attack_player.height, boss.base.pos, boss.base.width, boss.base.height)) {
-					attack_player.isAlive = false;
-					boss.base.hp -= attack_player.damage;
-					boss.base.isInvincible = true;
-					boss.base.invincible_time = 60;
+				if (!boss.base.isInvincible && attack_player.isAlive) {
+					if (isHit(attack_player.pos, attack_player.width, attack_player.height, boss.base.pos, boss.base.width, boss.base.height)) {
+						attack_player.isAlive = false;
+						boss.base.hp -= attack_player.damage;
+						boss.base.isInvincible = true;
+						boss.base.invincible_time = 60;
+					}
 				}
-			}
+				}
+				
 
 			break;
 		}
