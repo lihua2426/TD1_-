@@ -137,7 +137,6 @@ Attack Attack_Range(Vector2 pos, Vector2 dir) {
 
 	return r;
 
-
 }
 
 // 当たり判定の
