@@ -5,7 +5,6 @@ const int kWindowWitch = 1280;
 const int kWindowHeight = 720;
 bool debug = true;
 
-
 //
 typedef enum {
 	START, // タイトル
@@ -30,6 +29,19 @@ struct Mouse {
 	Vector2 pos;
 	Vector2 dir;
 	bool isMouse;
+};
+
+struct Camera {
+	Vector2 offset;
+	int shankeTime;
+	float shakeProw;
+};
+
+struct UI {
+	int x, y, w, h;
+	const char* label;
+	bool isHover;
+	bool isClicked;
 };
 
 // playerとbossの共有宣言
@@ -156,11 +168,9 @@ Attack Attack_Range(Vector2 pos, Vector2 dir) {
 	r.speed = 20.0f;
 	r.isAlive = false;
 	r.hasHit = false;
-
-	// 弾斜め発射スピード正規化
-
 	return r;
 }
+
 
 // 共有の斜め移動スピード正規化と画面出てない制定
 void Move(Vector2& pos, Vector2& vec, float width, float height, float speed) {
@@ -233,9 +243,7 @@ void CharacterMelee(Character& attacker, Character& b, Attack melee[], int melee
 }
 
 // 共有の弾発射
-void CharacterRange(Character& attacker, Character& target, Attack range[], int rangeMax, int& shootCooldown, bool isShooting) {
-
-	
+void CharacterRange(Character& attacker, Character& target, Attack range[], int rangeMax, int& shootCooldown, bool isShooting, Camera& camera) {
 
 	if (shootCooldown > 0) {
 		shootCooldown--;
@@ -244,7 +252,7 @@ void CharacterRange(Character& attacker, Character& target, Attack range[], int 
 	if (isShooting && shootCooldown == 0) {
 		for (int i = 0; i < rangeMax; i++) {
 			if (!range[i].isAlive) {
-				range[i] = Attack_Range(attacker.pos,attacker.dir);
+				range[i] = Attack_Range(attacker.pos, attacker.dir);
 				range[i].isAlive = true;
 				shootCooldown = 5;
 				break;
@@ -267,6 +275,8 @@ void CharacterRange(Character& attacker, Character& target, Attack range[], int 
 
 		if (isHit(range[i].pos, range[i].width, range[i].height, target.pos, target.width, target.height)) {
 			range[i].isAlive = false;
+			camera.shankeTime = 10;
+			camera.shakeProw = 5;
 			if (!target.isInvincible) {
 				target.hp -= range[i].damage;
 				target.isInvincible = true;
@@ -276,21 +286,54 @@ void CharacterRange(Character& attacker, Character& target, Attack range[], int 
 		}
 	}
 }
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void Shak(Camera& camera) {
+	if (camera.shankeTime > 0) {
+		camera.shankeTime--;
+		camera.offset.x = (float)(rand() % 3 - 1) * camera.shakeProw;
+		camera.offset.y = (float)(rand() % 3 - 1) * camera.shakeProw;
+	} else {
+		camera.offset.x = 0.0f;
+		camera.offset.y = 0.0f;
+	}
+}
 
-Mouse mouse{
-    .pos = {0.0f, 0.0f},
-    .dir = {0.0f, 0.0f},
-    .isMouse = false,
-};
+
+void UpdateButton(UI& box) {
+	int mouseX, mouseY;
+	Novice::GetMousePosition(&mouseX, &mouseY);
+
+	box.isHover = (mouseX > box.x && mouseX < box.x + box.w && mouseY > box.y && mouseY < box.y + box.h);
+
+	box.isClicked = box.isHover && Novice::IsTriggerMouse(0);
+}
+
+void DrawButton(const UI& box) {
+	int color = box.isHover ? WHITE : BLACK;
+	Novice::DrawBox(box.x, box.y, box.w, box.h, 0.0f, color, kFillModeSolid);
+	Novice::ScreenPrintf(box.x + box.w / 2 - 10, box.y + box.h / 2 - 5, box.label);
+}
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
-	//Novice::SetMouseCursorVisibility(mouse.isMouse);
 
 	Player player = InitPlayer(640.0f, 600.0f);
 
 	Boss boss = InitBoss(640.0f, 320.0f);
 	Attack attack_player{};
+
+	Mouse mouse{
+	    .pos = {0.0f, 0.0f},
+	    .dir = {0.0f, 0.0f},
+	    .isMouse = false,
+	};
+
+	Camera camera{
+	    .offset = {0.0f, 0.0f},
+	    .shankeTime = 0,
+	    .shakeProw = 0.0f,
+	};
 
 	const int meleeMax = 1;
 	const int rangeMax = 32;
@@ -299,7 +342,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	// Attack boss_melee[meleeMax]{};
 	// Attack boss_range[rangeMax]{};
 
-	// Attack attack_boss{};
+	UI startBtn{540, 300, 200, 60, "START"};
 
 	// ライブラリの初期化
 	Novice::Initialize(kWindowTitle, 1280, 720);
@@ -312,7 +355,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	while (Novice::ProcessMessage() == 0) {
 		// フレームの開始
 		Novice::BeginFrame();
-
+		Novice::SetMouseCursorVisibility(mouse.isMouse);
 		// キー入力を受け取る
 		memcpy(preKeys, keys, 256);
 		Novice::GetHitKeyStateAll(keys);
@@ -320,12 +363,32 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		///
 		/// ↓更新処理ここから
 		///
-		/// 
-		
+		///
+		// マウス
+		int mouseX = 0, mouseY = 0;
+		Novice::GetMousePosition(&mouseX, &mouseY);
+		mouse.pos.x = (float)mouseX;
+		mouse.pos.y = (float)mouseY;
+
+		float px = player.base.pos.x + player.base.width / 2;
+		float py = player.base.pos.y + player.base.height / 2;
+
+		player.base.dir.x = mouse.pos.x - px;
+		player.base.dir.y = mouse.pos.y - py;
+
+		float len = sqrtf(player.base.dir.x * player.base.dir.x + player.base.dir.y * player.base.dir.y);
+		if (len > 0) {
+			player.base.dir.x /= len;
+			player.base.dir.y /= len;
+		}
+
 		switch (game_state) {
 			// タイトル
 		case START: {
-			if (keys[DIK_DOWN] && !preKeys[DIK_DOWN]) {
+
+			UpdateButton(startBtn);
+
+			if (startBtn.isClicked) {
 				game_state = FIGHT;
 			}
 
@@ -340,6 +403,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			}
 			if (keys[DIK_DOWN] && !preKeys[DIK_DOWN]) {
 				game_state = LOSE;
+			}
+
+			if (camera.shankeTime > 0) {
+				Shak(camera);
+			} else {
+				camera.offset = {0.0f, 0.0f};
 			}
 
 			// player無敵時間の管理(無敵時間関数管理ずっとbug出てくる、まず、このまま使う）
@@ -378,35 +447,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				if (keys[DIK_D]) {
 					player.base.vec.x = 1.0f;
 				}
-				if (player.base.vec.x != 0 || player.base.vec.y != 0) {
-					player.base.dir = player.base.vec;
-				}
 
 				// 移動関数使う
 				Move(player.base.pos, player.base.vec, player.base.width, player.base.height, player.base.speed);
 
 				// 弾連続発射
 
-				bool isShooting = keys[DIK_K];
+				bool isShooting = Novice::IsPressMouse(0);
 				bool isAttacking = keys[DIK_J] && !preKeys[DIK_J];
 				CharacterMelee(player.base, boss.base, player_melee, meleeMax, isAttacking);
-				CharacterRange(player.base, boss.base,  player_range, rangeMax, player.base.shootCooldown, isShooting);
-
-				// if (player.base.shootCooldown > 0) {
-				// player.base.shootCooldown--;
-				//}//
-				// if (keys[DIK_K] &&player.base.shootCooldown==0) {
-				//	attack_player = Attack_Range(player.base.pos, player.base.dir);
-				//	attack_player.isAlive = true;
-				//	player.base.shootCooldown = 3;
-				//}
-
-				// 攻撃の関数使う
-				// isAttack(attack_player);
-				// if (attack_player.isAlive && attack_player.type == MELEE) {
-				//	attack_player.pos.x = player.base.pos.x + player.base.dir.x * (player.base.width * 0.8f);
-				//	attack_player.pos.y = player.base.pos.y + player.base.dir.y * (player.base.height * 0.8f);
-				// }
+				CharacterRange(player.base, boss.base, player_range, rangeMax, player.base.shootCooldown, isShooting, camera);
 
 				// playerとボースの当たり判定
 				if (!player.base.isInvincible) {
@@ -416,15 +466,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 						player.base.invincible_time = 60;
 					}
 				}
-
-				// if (!boss.base.isInvincible && attack_player.isAlive) {
-				//	if (isHit(attack_player.pos, attack_player.width, attack_player.height, boss.base.pos, boss.base.width, boss.base.height)) {
-				//	attack_player.isAlive = false;
-				//	boss.base.hp -= attack_player.damage;
-				//	boss.base.isInvincible = true;
-				//	boss.base.invincible_time = 60;
-				// }
-				//}
 			}
 
 			break;
@@ -458,25 +499,26 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		///
 		/// ↓描画処理ここから
 		///
+
 		switch (game_state) {
 		case START: {
+
 			Novice::DrawBox(0, 0, kWindowWitch, kWindowHeight, 0.0f, BLUE, kFillModeSolid);
-			Novice::ScreenPrintf(kWindowWitch / 2, kWindowHeight / 2, "START");
+			UpdateButton(startBtn);
+			DrawButton(startBtn);
+
 			break;
 		}
 
 		case FIGHT: {
+
 			// 背景
-			Novice::DrawBox(0, 0, kWindowWitch, kWindowHeight, 0.0f, BLACK, kFillModeSolid);
+			Novice::DrawBox(0 - (int)camera.offset.x, 0 - (int)camera.offset.y, kWindowWitch, kWindowHeight, 0.0f, BLACK, kFillModeSolid);
 
 			// boss
-			Novice::DrawBox((int)boss.base.pos.x, (int)boss.base.pos.y, (int)boss.base.width, (int)boss.base.height, 0.0f, RED, kFillModeSolid);
+			Novice::DrawBox((int)boss.base.pos.x - (int)camera.offset.x, (int)boss.base.pos.y - (int)camera.offset.y, (int)boss.base.width, (int)boss.base.height, 0.0f, RED, kFillModeSolid);
 			// player
-			Novice::DrawBox((int)player.base.pos.x, (int)player.base.pos.y, (int)player.base.width, (int)player.base.height, 0.0f, WHITE, kFillModeSolid);
-
-			// if (attack_player.isAlive) {
-			//	Novice::DrawBox((int)attack_player.pos.x, (int)attack_player.pos.y, (int)attack_player.width, (int)attack_player.height, 0.0f, WHITE, kFillModeSolid);
-			// }
+			Novice::DrawBox((int)player.base.pos.x - (int)camera.offset.x, (int)player.base.pos.y - (int)camera.offset.y, (int)player.base.width, (int)player.base.height, 0.0f, WHITE, kFillModeSolid);
 
 			for (int i = 0; i < meleeMax; i++) {
 				if (player_melee[i].isAlive) {
@@ -491,6 +533,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 					Novice::DrawBox((int)player_range[i].pos.x, (int)player_range[i].pos.y, (int)player_range[i].width, (int)player_range[i].height, 0.0f, WHITE, kFillModeSolid);
 				}
 			}
+
+			// UIポインタの絵
 
 			// 调试
 			int Y = 0;
@@ -507,7 +551,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				Novice::ScreenPrintf(0, Y += H, "BOSS HP: %d", boss.base.hp);
 				Novice::ScreenPrintf(0, Y += H, "BOSS isInvincible: %d", boss.base.isInvincible);
 				Novice::ScreenPrintf(0, Y += H, "BOSS invincible_time: %d", boss.base.invincible_time);
+				Novice::ScreenPrintf(0, Y += H, "shakTime: %d", camera.shankeTime);
 			}
+
+			Novice::DrawLine((int)px, (int)py, (int)mouse.pos.x, (int)mouse.pos.y, RED);
 
 			break;
 		}
@@ -524,6 +571,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			break;
 		}
 		}
+		Novice::DrawEllipse((int)mouse.pos.x, (int)mouse.pos.y, 10, 10, 0.0f, RED, kFillModeSolid);
+		Novice::ScreenPrintf(0, 0, "Mouse: (%.1f, %.1f)", mouse.pos.x, mouse.pos.y);
+
 		///
 		/// ↑描画処理ここまで
 		///
