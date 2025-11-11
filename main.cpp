@@ -4,20 +4,20 @@ const char kWindowTitle[] = "GC1B_01_カ_アン";
 const int kWindowWitch = 1280;
 const int kWindowHeight = 720;
 bool debug = true;
- 
+
 //
 typedef enum {
-	START,//タイトル
-	FIGHT,//戦い
-	WIN,//勝利
-	LOSE,//負け
+	START, // タイトル
+	FIGHT, // 戦い
+	WIN,   // 勝利
+	LOSE,  // 負け
 } GAME_STATE;
 GAME_STATE game_state = START;
 
-//攻撃の種類
+// 攻撃の種類
 enum AttackType {
-	MELEE,//近接攻撃
-	RANGE,//弾発射
+	MELEE, // 近接攻撃
+	RANGE, // 弾発射
 };
 
 struct Vector2 {
@@ -27,27 +27,26 @@ struct Vector2 {
 
 // playerとbossの共有宣言
 struct Character {
-	Vector2 pos; // 座標
-	Vector2 vec; //
-	Vector2 dir;//これ、もしマウスを使う場合は、dir使う
-	int hp;     //体力
-	int damage; //ダメージ
-	int invincible_time;//無敵時間
-	int shootCooldown;//
-	float width;//サイズ
+	Vector2 pos;         // 座標
+	Vector2 vec;         //
+	Vector2 dir;         // これ、もしマウスを使う場合は、dir使う
+	int hp;              // 体力
+	int damage;          // ダメージ
+	int invincible_time; // 無敵時間
+	int shootCooldown;   //
+	float width;         // サイズ
 	float height;
-	float speed;//移動のスピード
-	float dash_speed;//瞬間加速
-	bool isDash;//加速かどうか
-	bool isAlive;//存在かどうか
-	bool isHit;//被弾中かどうか//今まだ使わない
-	bool isInvincible;//無敵かどうか
+	float speed;       // 移動のスピード
+	float dash_speed;  // 瞬間加速
+	bool isDash;       // 加速かどうか
+	bool isAlive;      // 存在かどうか
+	bool isHit;        // 被弾中かどうか//今まだ使わない
+	bool isInvincible; // 無敵かどうか
 };
 
 // player
 struct Player {
 	Character base;
-	
 };
 
 // Boss
@@ -55,19 +54,19 @@ struct Boss {
 	Character base;
 };
 
-//playerとplayerとbossの攻撃の共有宣言
+// playerとplayerとbossの攻撃の共有宣言
 struct Attack {
-	Vector2 pos;// 座標
+	Vector2 pos; // 座標
 	Vector2 vec;
-	AttackType type;//種類
+	AttackType type; // 種類
 	int damage;
-	int lifeTime;//存在時間
-	int waitTime; //攻撃前の準備時間
-	float width;//サイズ
+	int lifeTime; // 存在時間
+	int waitTime; // 攻撃前の準備時間
+	float width;  // サイズ
 	float height;
 	float speed;
-	bool isAlive;//存在かどうか
-	bool hasHit;//ビットしたかどうか
+	bool isAlive; // 存在かどうか
+	bool hasHit;  // ビットしたかどうか
 };
 
 Player InitPlayer(float x, float y) {
@@ -98,6 +97,7 @@ Boss InitBoss(float x, float y) {
 	b.base.hp = 100;
 	b.base.damage = 10;
 	b.base.invincible_time = 60;
+	b.base.shootCooldown = 0;
 	b.base.width = 75.0f;
 	b.base.height = 75.0f;
 	b.base.speed = 5;
@@ -109,7 +109,7 @@ Boss InitBoss(float x, float y) {
 	return b;
 }
 
-//近接攻撃
+// 近接攻撃
 Attack Attack_Melee(Vector2 pos, Vector2 dir) {
 	Attack m{};
 	m.pos = pos;
@@ -129,10 +129,16 @@ Attack Attack_Melee(Vector2 pos, Vector2 dir) {
 	return m;
 }
 
-//弾発射
-
+// 弾発
 Attack Attack_Range(Vector2 pos, Vector2 dir) {
 	Attack r{};
+
+	float length = sqrtf(dir.x * dir.x + dir.y * dir.y);
+	if (length > 0) {
+		dir.x /= length;
+		dir.y /= length;
+	}
+
 	r.pos = pos;
 	r.vec = dir;
 	r.type = RANGE;
@@ -140,18 +146,13 @@ Attack Attack_Range(Vector2 pos, Vector2 dir) {
 	r.lifeTime = 90;
 	r.width = 25;
 	r.height = 25;
-	r.speed = 10.0f;
+	r.speed = 20.0f;
 	r.isAlive = false;
 	r.hasHit = false;
 
-	//弾斜め発射スピード正規化
-	 float length = sqrtf(dir.x * dir.x + dir.y * dir.y);
-	if (length > 0) {
-		dir.x /= length;
-		dir.y /= length;
-	}
-	return r;
+	// 弾斜め発射スピード正規化
 
+	return r;
 }
 
 // 共有の斜め移動スピード正規化と画面出てない制定
@@ -181,7 +182,7 @@ void Move(Vector2& pos, Vector2& vec, float width, float height, float speed) {
 // 共有の当たり判定の関数（aabb判定）
 bool isHit(Vector2& a, float aw, float ah, Vector2& b, float bw, float bh) { return (a.x < b.x + bw && a.x + aw > b.x && a.y < b.y + bh && a.y + ah > b.y); }
 
-//攻撃の存在時間と画面出てない設定
+// 攻撃の存在時間と画面出てない設定
 void isAttack(Attack& atk) {
 	if (!atk.isAlive) {
 		return;
@@ -190,16 +191,82 @@ void isAttack(Attack& atk) {
 	if (atk.lifeTime <= 0) {
 		atk.isAlive = false;
 	}
-	if (atk.type == RANGE) {
-		atk.pos.x += atk.vec.x * atk.speed;
-		atk.pos.y += atk.vec.y * atk.speed;
-	}
-	if (atk.pos.x < 0 || atk.pos.x + atk.width>1280 || atk.pos.y < 0 || atk.pos.y + atk.height>720) {
-		atk.isAlive = false;
 
+	if (atk.pos.x < 0 || atk.pos.x + atk.width > 1280 || atk.pos.y < 0 || atk.pos.y + atk.height > 720) {
+		atk.isAlive = false;
 	}
 }
-//
+// 共有の近接攻撃
+void CharacterMelee(Character& attacker, Character& b, Attack melee[], int meleeMax, bool isAttacking) {
+
+	if (isAttacking) {
+		for (int i = 0; i < meleeMax; i++) {
+			if (!melee[i].isAlive) {
+				melee[i] = Attack_Melee(attacker.pos, attacker.dir);
+				melee[i].isAlive = true;
+				break;
+			}
+		}
+	}
+	for (int i = 0; i < meleeMax; i++) {
+		if (!melee[i].isAlive) {
+			continue;
+		}
+		isAttack(melee[i]);
+		melee[i].pos.x = attacker.pos.x + attacker.dir.x * attacker.width;
+		melee[i].pos.y = attacker.pos.y + attacker.dir.y * attacker.height;
+
+		if (!b.isInvincible && isHit(melee[i].pos, melee[i].width, melee[i].height, b.pos, b.width, b.height)) {
+			b.hp -= melee[i].damage;
+			b.isInvincible = true;
+			b.invincible_time = 60;
+			// melee[i].isAlive = false;
+		}
+	}
+}
+
+// 共有の弾発射
+void CharacterRange(Character& attacker, Character& target, Attack range[], int rangeMax, int& shootCooldown, bool isShooting) {
+
+	if (shootCooldown > 0) {
+		shootCooldown--;
+	}
+
+	if (isShooting && shootCooldown == 0) {
+		for (int i = 0; i < rangeMax; i++) {
+			if (!range[i].isAlive) {
+				range[i] = Attack_Range(attacker.pos, attacker.dir);
+				range[i].isAlive = true;
+				shootCooldown = 3;
+				break;
+			}
+		}
+	}
+
+	for (int i = 0; i < rangeMax; i++) {
+		if (!range[i].isAlive)
+			continue;
+
+		// 移动
+		range[i].pos.x += range[i].vec.x * range[i].speed;
+		range[i].pos.y += range[i].vec.y * range[i].speed;
+
+		if (range[i].pos.x < 0 || range[i].pos.x > 1280 || range[i].pos.y < 0 || range[i].pos.y > 720) {
+			range[i].isAlive = false;
+			continue;
+		}
+
+		if (isHit(range[i].pos, range[i].width, range[i].height, target.pos, target.width, target.height)) {
+			range[i].isAlive = false;
+			if (!target.isInvincible) {
+				target.hp -= range[i].damage;
+				target.isInvincible = true;
+				target.invincible_time = 60;
+				
+			}
+		}
+	}
+}
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
@@ -208,7 +275,15 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	Boss boss = InitBoss(640.0f, 320.0f);
 	Attack attack_player{};
-	//Attack attack_boss{};
+
+	const int meleeMax = 1;
+	const int rangeMax = 32;
+	Attack player_melee[meleeMax]{};
+	Attack player_range[rangeMax]{};
+	// Attack boss_melee[meleeMax]{};
+	// Attack boss_range[rangeMax]{};
+
+	// Attack attack_boss{};
 
 	// ライブラリの初期化
 	Novice::Initialize(kWindowTitle, 1280, 720);
@@ -241,7 +316,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			// 戦い
 		case FIGHT: {
-			//勝敗条件//
+			// 勝敗条件//
 			if (keys[DIK_DOWN] && !preKeys[DIK_DOWN]) {
 				game_state = WIN;
 			}
@@ -249,7 +324,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				game_state = LOSE;
 			}
 
-			//player無敵時間の管理(無敵時間関数管理ずっとbug出てくる、まず、このまま使う）
+			// player無敵時間の管理(無敵時間関数管理ずっとbug出てくる、まず、このまま使う）
 			if (player.base.isInvincible) {
 				player.base.invincible_time--;
 
@@ -272,7 +347,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			//  移動処理
 			if (player.base.isAlive) {
 				player.base.vec = {0.0f, 0.0f};
-				
+
 				if (keys[DIK_W]) {
 					player.base.vec.y = -1.0f;
 				}
@@ -289,54 +364,50 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 					player.base.dir = player.base.vec;
 				}
 
-				//移動関数使う
+				// 移動関数使う
 				Move(player.base.pos, player.base.vec, player.base.width, player.base.height, player.base.speed);
 
-				//攻撃の更新管理
-				//近接攻撃
-				if (keys[DIK_J] && !preKeys[DIK_J]) {
-					attack_player = Attack_Melee(player.base.pos, player.base.dir);
-					attack_player.isAlive = true;
-				}
-				
-				//弾連続発射
-				if (player.base.shootCooldown > 0) {
-					player.base.shootCooldown--;
-				}
-				if (keys[DIK_K] &&player.base.shootCooldown==0) {
-					attack_player = Attack_Range(player.base.pos, player.base.dir);
-					attack_player.isAlive = true;
-					player.base.shootCooldown = 3;
-				}
+				// 弾連続発射
 
-				//攻撃の関数使う
-				isAttack(attack_player);
-				if (attack_player.isAlive && attack_player.type == MELEE) {
-					attack_player.pos.x = player.base.pos.x + player.base.dir.x * (player.base.width * 0.8f);
-					attack_player.pos.y = player.base.pos.y + player.base.dir.y * (player.base.height * 0.8f);
-				}
+				bool isShooting = keys[DIK_K];
+				bool isAttacking = keys[DIK_J] && !preKeys[DIK_J];
+				CharacterMelee(player.base, boss.base, player_melee, meleeMax, isAttacking);
+				CharacterRange(player.base, boss.base, player_range, rangeMax, player.base.shootCooldown, isShooting);
 
+				// if (player.base.shootCooldown > 0) {
+				// player.base.shootCooldown--;
+				//}//
+				// if (keys[DIK_K] &&player.base.shootCooldown==0) {
+				//	attack_player = Attack_Range(player.base.pos, player.base.dir);
+				//	attack_player.isAlive = true;
+				//	player.base.shootCooldown = 3;
+				//}
+
+				// 攻撃の関数使う
+				// isAttack(attack_player);
+				// if (attack_player.isAlive && attack_player.type == MELEE) {
+				//	attack_player.pos.x = player.base.pos.x + player.base.dir.x * (player.base.width * 0.8f);
+				//	attack_player.pos.y = player.base.pos.y + player.base.dir.y * (player.base.height * 0.8f);
+				// }
 
 				// playerとボースの当たり判定
 				if (!player.base.isInvincible) {
 					if (isHit(player.base.pos, player.base.width, player.base.height, boss.base.pos, boss.base.width, boss.base.height)) {
-
 						player.base.hp -= boss.base.damage;
 						player.base.isInvincible = true;
 						player.base.invincible_time = 60;
 					}
 				}
 
-				if (!boss.base.isInvincible && attack_player.isAlive) {
-					if (isHit(attack_player.pos, attack_player.width, attack_player.height, boss.base.pos, boss.base.width, boss.base.height)) {
-						attack_player.isAlive = false;
-						boss.base.hp -= attack_player.damage;
-						boss.base.isInvincible = true;
-						boss.base.invincible_time = 60;
-					}
-				}
-				}
-				
+				// if (!boss.base.isInvincible && attack_player.isAlive) {
+				//	if (isHit(attack_player.pos, attack_player.width, attack_player.height, boss.base.pos, boss.base.width, boss.base.height)) {
+				//	attack_player.isAlive = false;
+				//	boss.base.hp -= attack_player.damage;
+				//	boss.base.isInvincible = true;
+				//	boss.base.invincible_time = 60;
+				// }
+				//}
+			}
 
 			break;
 		}
@@ -384,11 +455,24 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Novice::DrawBox((int)boss.base.pos.x, (int)boss.base.pos.y, (int)boss.base.width, (int)boss.base.height, 0.0f, RED, kFillModeSolid);
 			// player
 			Novice::DrawBox((int)player.base.pos.x, (int)player.base.pos.y, (int)player.base.width, (int)player.base.height, 0.0f, WHITE, kFillModeSolid);
-			
-			if (attack_player.isAlive) {
-				Novice::DrawBox((int)attack_player.pos.x, (int)attack_player.pos.y, (int)attack_player.width, (int)attack_player.height, 0.0f, WHITE, kFillModeSolid);
+
+			// if (attack_player.isAlive) {
+			//	Novice::DrawBox((int)attack_player.pos.x, (int)attack_player.pos.y, (int)attack_player.width, (int)attack_player.height, 0.0f, WHITE, kFillModeSolid);
+			// }
+
+			for (int i = 0; i < meleeMax; i++) {
+				if (player_melee[i].isAlive) {
+
+					Novice::DrawBox((int)player_melee[i].pos.x, (int)player_melee[i].pos.y, (int)player_melee[i].width, (int)player_melee[i].height, 0.0f, WHITE, kFillModeSolid);
+				}
 			}
-		
+
+			for (int i = 0; i < rangeMax; i++) {
+				if (player_range[i].isAlive) {
+
+					Novice::DrawBox((int)player_range[i].pos.x, (int)player_range[i].pos.y, (int)player_range[i].width, (int)player_range[i].height, 0.0f, WHITE, kFillModeSolid);
+				}
+			}
 
 			// 调试
 			int Y = 0;
