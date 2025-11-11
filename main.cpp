@@ -237,7 +237,7 @@ void CharacterRange(Character& attacker, Character& target, Attack range[], int 
 			if (!range[i].isAlive) {
 				range[i] = Attack_Range(attacker.pos, attacker.dir);
 				range[i].isAlive = true;
-				shootCooldown = 3;
+				shootCooldown = 5;
 				break;
 			}
 		}
