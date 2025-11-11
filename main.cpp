@@ -5,6 +5,7 @@ const int kWindowWitch = 1280;
 const int kWindowHeight = 720;
 bool debug = true;
 
+
 //
 typedef enum {
 	START, // タイトル
@@ -23,6 +24,12 @@ enum AttackType {
 struct Vector2 {
 	float x;
 	float y;
+};
+
+struct Mouse {
+	Vector2 pos;
+	Vector2 dir;
+	bool isMouse;
 };
 
 // playerとbossの共有宣言
@@ -228,6 +235,8 @@ void CharacterMelee(Character& attacker, Character& b, Attack melee[], int melee
 // 共有の弾発射
 void CharacterRange(Character& attacker, Character& target, Attack range[], int rangeMax, int& shootCooldown, bool isShooting) {
 
+	
+
 	if (shootCooldown > 0) {
 		shootCooldown--;
 	}
@@ -235,7 +244,7 @@ void CharacterRange(Character& attacker, Character& target, Attack range[], int 
 	if (isShooting && shootCooldown == 0) {
 		for (int i = 0; i < rangeMax; i++) {
 			if (!range[i].isAlive) {
-				range[i] = Attack_Range(attacker.pos, attacker.dir);
+				range[i] = Attack_Range(attacker.pos,attacker.dir);
 				range[i].isAlive = true;
 				shootCooldown = 5;
 				break;
@@ -268,8 +277,15 @@ void CharacterRange(Character& attacker, Character& target, Attack range[], int 
 	}
 }
 
+Mouse mouse{
+    .pos = {0.0f, 0.0f},
+    .dir = {0.0f, 0.0f},
+    .isMouse = false,
+};
+
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
+	//Novice::SetMouseCursorVisibility(mouse.isMouse);
 
 	Player player = InitPlayer(640.0f, 600.0f);
 
@@ -304,6 +320,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		///
 		/// ↓更新処理ここから
 		///
+		/// 
+		
 		switch (game_state) {
 			// タイトル
 		case START: {
@@ -372,7 +390,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				bool isShooting = keys[DIK_K];
 				bool isAttacking = keys[DIK_J] && !preKeys[DIK_J];
 				CharacterMelee(player.base, boss.base, player_melee, meleeMax, isAttacking);
-				CharacterRange(player.base, boss.base, player_range, rangeMax, player.base.shootCooldown, isShooting);
+				CharacterRange(player.base, boss.base,  player_range, rangeMax, player.base.shootCooldown, isShooting);
 
 				// if (player.base.shootCooldown > 0) {
 				// player.base.shootCooldown--;
