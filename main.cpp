@@ -9,8 +9,9 @@ bool debug = true;
 typedef enum {
 	START, // タイトル
 	FIGHT, // 戦い
-	WIN,   // 勝利
-	LOSE,  // 負け
+	STOP,
+	WIN,  // 勝利
+	LOSE, // 負け
 } GAME_STATE;
 GAME_STATE game_state = START;
 
@@ -19,6 +20,7 @@ enum AttackType {
 	MELEE, // 近接攻撃
 	RANGE, // 弾発射
 };
+bool type = false;
 
 struct Vector2 {
 	float x;
@@ -57,6 +59,8 @@ struct Character {
 	float height;
 	float speed;       // 移動のスピード
 	float dash_speed;  // 瞬間加速
+	float dash_time;
+	float normal_speed;
 	bool isDash;       // 加速かどうか
 	bool isAlive;      // 存在かどうか
 	bool isHit;        // 被弾中かどうか//今まだ使わない
@@ -99,8 +103,10 @@ Player InitPlayer(float x, float y) {
 	p.base.shootCooldown = 0;
 	p.base.width = 50.0f;
 	p.base.height = 50.0f;
-	p.base.speed = 5;
+	p.base.speed = 0;
 	p.base.dash_speed = 10;
+	p.base.dash_time = 0;
+	p.base.normal_speed = 5;
 	p.base.isDash = false;
 	p.base.isAlive = true;
 	p.base.isHit = false;
@@ -119,8 +125,10 @@ Boss InitBoss(float x, float y) {
 	b.base.shootCooldown = 0;
 	b.base.width = 75.0f;
 	b.base.height = 75.0f;
-	b.base.speed = 5;
+	b.base.speed = 0;
 	b.base.dash_speed = 10;
+	b.base.dash_time = 0;
+	b.base.normal_speed = 5;
 	b.base.isDash = false;
 	b.base.isAlive = true;
 	b.base.isHit = false;
@@ -170,7 +178,23 @@ Attack Attack_Range(Vector2 pos, Vector2 dir) {
 	r.hasHit = false;
 	return r;
 }
+//
+void Dash(Character& dasher) {
+	if (!dasher.isDash) {
+		return;
+	}
+		dasher.speed = dasher.dash_speed;
+	dasher.dash_time++;
 
+	if (dasher.isDash) {
+		if (dasher.dash_time >= 20) {
+			dasher.isDash = false;
+			dasher.dash_time = 0;
+		
+			dasher.speed = dasher.normal_speed;
+		}
+	}
+}
 
 // 共有の斜め移動スピード正規化と画面出てない制定
 void Move(Vector2& pos, Vector2& vec, float width, float height, float speed) {
@@ -280,12 +304,13 @@ void CharacterRange(Character& attacker, Character& target, Attack range[], int 
 			if (!target.isInvincible) {
 				target.hp -= range[i].damage;
 				target.isInvincible = true;
-				target.invincible_time = 60;
-				
+				target.invincible_time = 30;
 			}
 		}
 	}
 }
+
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void Shak(Camera& camera) {
@@ -299,7 +324,6 @@ void Shak(Camera& camera) {
 	}
 }
 
-
 void UpdateButton(UI& box) {
 	int mouseX, mouseY;
 	Novice::GetMousePosition(&mouseX, &mouseY);
@@ -310,9 +334,60 @@ void UpdateButton(UI& box) {
 }
 
 void DrawButton(const UI& box) {
-	int color = box.isHover ? WHITE : BLACK;
+	int color = box.isHover ? BLACK: GREEN;
 	Novice::DrawBox(box.x, box.y, box.w, box.h, 0.0f, color, kFillModeSolid);
-	Novice::ScreenPrintf(box.x + box.w / 2 - 10, box.y + box.h / 2 - 5, box.label);
+	Novice::ScreenPrintf(box.x + box.w / 2 - 30, box.y + box.h / 2 - 5, box.label);
+}
+
+void ALL(Player& player, Boss& boss, Mouse& mouse, Camera& camera, Attack melee[], Attack range[], int meleeMax, int rangeMax) {
+	player = InitPlayer(640.0f, 600.0f);
+	//
+	boss = InitBoss(640.0f, 320.0f);
+	//
+	mouse = {
+	    .pos = {0.0f, 0.0f},
+	    .dir = {0.0f, 0.0f},
+	    .isMouse = false,
+	};
+	//
+	camera = {
+	    .offset = {0.0f, 0.0f},
+	    .shankeTime = 0,
+	    .shakeProw = 0.0f,
+	};
+	//
+	meleeMax = 1;
+	rangeMax = 32;
+	for (int i = 0; i < meleeMax; i++) {
+		melee[i].pos = player.base.pos;
+		melee[i].vec = player.base.dir;
+		melee[i].type = MELEE;
+		melee[i].damage = 10;
+		melee[i].lifeTime = 15;
+		melee[i].waitTime = 15;
+		melee[i].width = 50;
+		melee[i].height = 50;
+		melee[i].speed = 0.0f;
+		melee[i].isAlive = false;
+		melee[i].hasHit = false;
+
+		melee[i].pos.x += player.base. dir.x * melee[i].width;
+		melee[i].pos.y += player.base.dir.y * melee[i].height;
+	
+	
+	}
+	for (int i = 0; i < rangeMax; i++) {
+		range[i].pos =player.base.pos;
+		range[i].vec = player.base.dir;
+		range[i].type = RANGE;
+		range[i].damage = 10;
+		range[i].lifeTime = 90;
+		range[i].width = 25;
+		range[i].height = 25;
+		range[i].speed = 20.0f;
+		range[i].isAlive = false;
+		range[i].hasHit = false;
+	}
 }
 
 // Windowsアプリでのエントリーポイント(main関数)
@@ -321,7 +396,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	Player player = InitPlayer(640.0f, 600.0f);
 
 	Boss boss = InitBoss(640.0f, 320.0f);
-	Attack attack_player{};
 
 	Mouse mouse{
 	    .pos = {0.0f, 0.0f},
@@ -342,7 +416,24 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	// Attack boss_melee[meleeMax]{};
 	// Attack boss_range[rangeMax]{};
 
+	// タイトル
 	UI startBtn{540, 300, 200, 60, "START"};
+
+	// ゲーム時、止まる
+	UI stopBtn{0, 0, 30, 30, "STOP"};
+	// 止まるmenu
+	// 続行
+	UI menuBtn_countinou{540, 100, 200, 100, "COUNTINOU"};
+	// やり直
+	UI menuBtn_return{540, 300, 200, 100, "RETURN"};
+	// タイトル戻す
+	UI menuBtn_return_title{540, 500, 200, 100, "RETURN_TITLE"};
+
+	// WIN
+	// もう一回遊び
+	UI scoreBtn_return{540, 100, 200, 100, "RETURN"};
+	// タイトルに戻す
+	UI scoreBtn_return_title{540, 520, 200, 100, "RETURN_TITLE"};
 
 	// ライブラリの初期化
 	Novice::Initialize(kWindowTitle, 1280, 720);
@@ -385,11 +476,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		switch (game_state) {
 			// タイトル
 		case START: {
+			ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
 
 			UpdateButton(startBtn);
 
 			if (startBtn.isClicked) {
 				game_state = FIGHT;
+				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
 			}
 
 			break;
@@ -397,12 +490,18 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			// 戦い
 		case FIGHT: {
-			// 勝敗条件//
-			if (keys[DIK_DOWN] && !preKeys[DIK_DOWN]) {
-				game_state = WIN;
+
+			UpdateButton(stopBtn);
+			if (stopBtn.isClicked) {
+				game_state = STOP;
 			}
-			if (keys[DIK_DOWN] && !preKeys[DIK_DOWN]) {
+
+			if (player.base.hp <= 0 && boss.base.isAlive) {
 				game_state = LOSE;
+			}
+
+			if (boss.base.hp <= 0 && player.base.isAlive) {
+				game_state = WIN;
 			}
 
 			if (camera.shankeTime > 0) {
@@ -410,6 +509,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			} else {
 				camera.offset = {0.0f, 0.0f};
 			}
+			
 
 			// player無敵時間の管理(無敵時間関数管理ずっとbug出てくる、まず、このまま使う）
 			if (player.base.isInvincible) {
@@ -433,6 +533,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			// player
 			//  移動処理
 			if (player.base.isAlive) {
+				player.base.speed = player.base.normal_speed;
 				player.base.vec = {0.0f, 0.0f};
 
 				if (keys[DIK_W]) {
@@ -448,15 +549,31 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 					player.base.vec.x = 1.0f;
 				}
 
+				if (keys[DIK_SPACE] && !preKeys[DIK_SPACE]) {
+					player.base.isDash = true;
+					player.base.dash_time = 0;
+				}
 				// 移動関数使う
+				Dash(player.base);
 				Move(player.base.pos, player.base.vec, player.base.width, player.base.height, player.base.speed);
+				
+
+				
 
 				// 弾連続発射
 
 				bool isShooting = Novice::IsPressMouse(0);
-				bool isAttacking = keys[DIK_J] && !preKeys[DIK_J];
-				CharacterMelee(player.base, boss.base, player_melee, meleeMax, isAttacking);
-				CharacterRange(player.base, boss.base, player_range, rangeMax, player.base.shootCooldown, isShooting, camera);
+				bool isAttacking = Novice::IsPressMouse(0);
+				if (keys[DIK_E] && !preKeys[DIK_E]) {
+					type = !type;
+				}
+				if (type == false) {
+					CharacterRange(player.base, boss.base, player_range, rangeMax, player.base.shootCooldown, isShooting, camera);
+				} else if (type == true) {
+					CharacterMelee(player.base, boss.base, player_melee, meleeMax, isAttacking);
+				}
+				
+				
 
 				// playerとボースの当たり判定
 				if (!player.base.isInvincible) {
@@ -472,24 +589,52 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		}
 			// 勝利
 		case WIN: {
-			if (keys[DIK_DOWN] && !preKeys[DIK_DOWN]) {
-				game_state = START;
-			}
-			if (keys[DIK_UP] && !preKeys[DIK_UP]) {
+
+			UpdateButton(scoreBtn_return);
+			if (scoreBtn_return.isClicked) {
+				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = FIGHT;
 			}
+			UpdateButton(scoreBtn_return_title);
+			if (scoreBtn_return_title.isClicked) {
+				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
+				game_state = START;
+			}
+
 			break;
 		}
 
 			// 負け
 		case LOSE: {
-			if (keys[DIK_DOWN] && !preKeys[DIK_DOWN]) {
-				game_state = START;
-			}
-			if (keys[DIK_UP] && !preKeys[DIK_UP]) {
+
+			UpdateButton(scoreBtn_return);
+			if (scoreBtn_return.isClicked) {
+				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = FIGHT;
 			}
+			UpdateButton(scoreBtn_return_title);
+			if (scoreBtn_return_title.isClicked) {
+				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
+				game_state = START;
+			}
 			break;
+		}
+		case STOP: {
+			UpdateButton(menuBtn_countinou);
+			if (menuBtn_countinou.isClicked) {
+				game_state = FIGHT;
+			}
+
+			UpdateButton(menuBtn_return);
+			if (menuBtn_return.isClicked) {
+				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
+				game_state = FIGHT;
+			}
+			UpdateButton(menuBtn_return_title);
+			if (menuBtn_return_title.isClicked) {
+				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
+				game_state = START;
+			}
 		}
 		}
 		///
@@ -504,7 +649,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		case START: {
 
 			Novice::DrawBox(0, 0, kWindowWitch, kWindowHeight, 0.0f, BLUE, kFillModeSolid);
-			UpdateButton(startBtn);
+			// UpdateButton(startBtn);
 			DrawButton(startBtn);
 
 			break;
@@ -552,26 +697,40 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				Novice::ScreenPrintf(0, Y += H, "BOSS isInvincible: %d", boss.base.isInvincible);
 				Novice::ScreenPrintf(0, Y += H, "BOSS invincible_time: %d", boss.base.invincible_time);
 				Novice::ScreenPrintf(0, Y += H, "shakTime: %d", camera.shankeTime);
+				Novice::ScreenPrintf(0, Y += H, "dashTime: %f",player.base.dash_time);
+				Novice::ScreenPrintf(0, Y += H, "nowSpeed: %f", player.base.speed);
 			}
 
 			Novice::DrawLine((int)px, (int)py, (int)mouse.pos.x, (int)mouse.pos.y, RED);
 
+			DrawButton(stopBtn);
 			break;
 		}
 
 		case WIN: {
 			Novice::DrawBox(0, 0, kWindowWitch, kWindowHeight, 0.0f, 0xFFD700, kFillModeSolid);
 			Novice::ScreenPrintf(kWindowWitch / 2, kWindowHeight / 2, "WIN");
+
+			DrawButton(scoreBtn_return);
+			DrawButton(scoreBtn_return_title);
 			break;
 		}
 
 		case LOSE: {
 			Novice::DrawBox(0, 0, kWindowWitch, kWindowHeight, 0.0f, RED, kFillModeSolid);
 			Novice::ScreenPrintf(kWindowWitch / 2, kWindowHeight / 2, "LOSE");
+
+			DrawButton(scoreBtn_return);
+			DrawButton(scoreBtn_return_title);
 			break;
 		}
+		case STOP: {
+			DrawButton(menuBtn_countinou);
+			DrawButton(menuBtn_return);
+			DrawButton(menuBtn_return_title);
 		}
-		Novice::DrawEllipse((int)mouse.pos.x, (int)mouse.pos.y, 10, 10, 0.0f, RED, kFillModeSolid);
+		}
+		Novice::DrawEllipse((int)mouse.pos.x, (int)mouse.pos.y, 10, 10, 0.0f, GREEN, kFillModeSolid);
 		Novice::ScreenPrintf(0, 0, "Mouse: (%.1f, %.1f)", mouse.pos.x, mouse.pos.y);
 
 		///
