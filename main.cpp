@@ -4,7 +4,6 @@ const char kWindowTitle[] = "GC1B_01_カ_アン";
 const int kWindowWitch = 1280;
 const int kWindowHeight = 720;
 bool debug = true;
-
 //
 typedef enum {
 	START, // タイトル
@@ -27,18 +26,21 @@ struct Vector2 {
 	float y;
 };
 
+//マウス
 struct Mouse {
 	Vector2 pos;
 	Vector2 dir;
 	bool isMouse;
 };
 
+//カメラ宣言
 struct Camera {
 	Vector2 offset;
 	int shankeTime;
 	float shakeProw;
 };
 
+//UI宣言
 struct UI {
 	int x, y, w, h;
 	const char* label;
@@ -92,6 +94,21 @@ struct Attack {
 	bool hasHit;  // ビットしたかどうか
 };
 
+//粒子システム
+struct Particle {
+	Vector2 pos;
+	Vector2 vec;
+	float width;
+	float height;
+	int lifeTime;
+	bool isAlive;
+};
+
+//=================================================================
+//初期化
+//===============================================================--
+
+//プレイヤ
 Player InitPlayer(float x, float y) {
 	Player p{};
 	p.base.pos = {x, y};
@@ -114,6 +131,7 @@ Player InitPlayer(float x, float y) {
 	return p;
 }
 
+//ボース
 Boss InitBoss(float x, float y) {
 	Boss b{};
 	b.base.pos = {x, y};
@@ -136,7 +154,8 @@ Boss InitBoss(float x, float y) {
 	return b;
 }
 
-// 近接攻撃
+
+//共有近接攻撃
 Attack Attack_Melee(Vector2 pos, Vector2 dir) {
 	Attack m{};
 	m.pos = pos;
@@ -156,10 +175,11 @@ Attack Attack_Melee(Vector2 pos, Vector2 dir) {
 	return m;
 }
 
-// 弾発
+// 共有弾攻撃
 Attack Attack_Range(Vector2 pos, Vector2 dir) {
 	Attack r{};
 
+	//斜め移動の処理//正規化
 	float length = sqrtf(dir.x * dir.x + dir.y * dir.y);
 	if (length > 0) {
 		dir.x /= length;
@@ -178,14 +198,22 @@ Attack Attack_Range(Vector2 pos, Vector2 dir) {
 	r.hasHit = false;
 	return r;
 }
-//
-void Dash(Character& dasher) {
+
+//===============================================================================
+//関数
+//================================================================================
+
+//共有のダシュル関数
+void Dash(Character& dasher) {//dasherは、ダシュルする人
+	//もしダシュルしない場合は、処理/終わり
 	if (!dasher.isDash) {
 		return;
 	}
-		dasher.speed = dasher.dash_speed;
+	//スピード変更、時間始まる、
+	dasher.speed = dasher.dash_speed;
 	dasher.dash_time++;
 
+	//もし、ダシュル中、時間20かかる、ダシュル終わる
 	if (dasher.isDash) {
 		if (dasher.dash_time >= 20) {
 			dasher.isDash = false;
@@ -195,6 +223,9 @@ void Dash(Character& dasher) {
 		}
 	}
 }
+
+
+
 
 // 共有の斜め移動スピード正規化と画面出てない制定
 void Move(Vector2& pos, Vector2& vec, float width, float height, float speed) {
@@ -221,13 +252,16 @@ void Move(Vector2& pos, Vector2& vec, float width, float height, float speed) {
 }
 
 // 共有の当たり判定の関数（aabb判定）
-bool isHit(Vector2& a, float aw, float ah, Vector2& b, float bw, float bh) { return (a.x < b.x + bw && a.x + aw > b.x && a.y < b.y + bh && a.y + ah > b.y); }
+bool isHit(const Character& a, const Character& b) {
+	return (a.pos.x < b.pos.x + b.width && a.pos.x + a.width > b.pos.x && a.pos.y < b.pos.y + b.height && a.pos.y + a.height > b.pos.y);
+}
 
 // 攻撃の存在時間と画面出てない設定
 void isAttack(Attack& atk) {
 	if (!atk.isAlive) {
 		return;
 	}
+	//攻撃の存在時間減る
 	atk.lifeTime--;
 	if (atk.lifeTime <= 0) {
 		atk.isAlive = false;
@@ -237,77 +271,113 @@ void isAttack(Attack& atk) {
 		atk.isAlive = false;
 	}
 }
-// 共有の近接攻撃
-void CharacterMelee(Character& attacker, Character& b, Attack melee[], int meleeMax, bool isAttacking) {
 
-	if (isAttacking) {
-		for (int i = 0; i < meleeMax; i++) {
-			if (!melee[i].isAlive) {
-				melee[i] = Attack_Melee(attacker.pos, attacker.dir);
-				melee[i].isAlive = true;
-				break;
-			}
-		}
-	}
+ //近接攻撃を生成する関数
+//
+void SpawnMelee(Character& attacker, Attack melee[], int meleeMax) {
 	for (int i = 0; i < meleeMax; i++) {
 		if (!melee[i].isAlive) {
-			continue;
-		}
-		isAttack(melee[i]);
-		melee[i].pos.x = attacker.pos.x + attacker.dir.x * attacker.width;
-		melee[i].pos.y = attacker.pos.y + attacker.dir.y * attacker.height;
-
-		if (!b.isInvincible && isHit(melee[i].pos, melee[i].width, melee[i].height, b.pos, b.width, b.height)) {
-			b.hp -= melee[i].damage;
-			b.isInvincible = true;
-			b.invincible_time = 60;
-			// melee[i].isAlive = false;
+			melee[i] = Attack_Melee(attacker.pos, attacker.dir);
+			melee[i].isAlive = true;
+			return;
 		}
 	}
 }
 
-// 共有の弾発射
-void CharacterRange(Character& attacker, Character& target, Attack range[], int rangeMax, int& shootCooldown, bool isShooting, Camera& camera) {
 
-	if (shootCooldown > 0) {
-		shootCooldown--;
-	}
-
-	if (isShooting && shootCooldown == 0) {
-		for (int i = 0; i < rangeMax; i++) {
-			if (!range[i].isAlive) {
-				range[i] = Attack_Range(attacker.pos, attacker.dir);
-				range[i].isAlive = true;
-				shootCooldown = 5;
-				break;
-			}
-		}
-	}
+void SpawnRange(Character& attacker, Attack range[], int rangeMax, int& cooldown) {
+	if (cooldown > 0)
+		return;
 
 	for (int i = 0; i < rangeMax; i++) {
-		if (!range[i].isAlive)
-			continue;
-
-		// 移动
-		range[i].pos.x += range[i].vec.x * range[i].speed;
-		range[i].pos.y += range[i].vec.y * range[i].speed;
-
-		if (range[i].pos.x < 0 || range[i].pos.x > 1280 || range[i].pos.y < 0 || range[i].pos.y > 720) {
-			range[i].isAlive = false;
-			continue;
-		}
-
-		if (isHit(range[i].pos, range[i].width, range[i].height, target.pos, target.width, target.height)) {
-			range[i].isAlive = false;
-			camera.shankeTime = 10;
-			camera.shakeProw = 5;
-			if (!target.isInvincible) {
-				target.hp -= range[i].damage;
-				target.isInvincible = true;
-				target.invincible_time = 30;
-			}
+		if (!range[i].isAlive) {
+			range[i] = Attack_Range(attacker.pos, attacker.dir);
+			range[i].isAlive = true;
+			cooldown = 5; 
+			return;
 		}
 	}
+}
+
+void UpdateAttack(Attack& atk) {
+	if (!atk.isAlive)
+		return;
+
+	atk.lifeTime--;
+	if (atk.lifeTime <= 0) {
+		atk.isAlive = false;
+		return;
+	}
+
+	// 移动（仅远程）
+	atk.pos.x += atk.vec.x * atk.speed;
+	atk.pos.y += atk.vec.y * atk.speed;
+
+	// 画面外
+	if (atk.pos.x < 0 || atk.pos.x > 1280 || atk.pos.y < 0 || atk.pos.y > 720) {
+		atk.isAlive = false;
+	}
+}
+
+void ApplyDamage(Character& target, int damage) {
+	if (target.isInvincible)
+		return;
+
+	target.hp -= damage;
+	target.isInvincible = true;
+	target.invincible_time = 30; // 你原本的逻辑
+}
+
+void ApplyCameraShake(Camera& camera, float power, int time) {
+	camera.shankeTime = time;
+	camera.shakeProw = power;
+}
+
+bool CheckHit(const Attack& atk, const Character& target) {
+	return (atk.pos.x < target.pos.x + target.width && atk.pos.x + atk.width > target.pos.x && atk.pos.y < target.pos.y + target.height && atk.pos.y + atk.height > target.pos.y);
+}
+
+
+void AttackSystem_UpdateAll(
+    Character& attacker,
+    Character& target,
+    Attack attackArray[],
+    int attackMax,
+    bool isAttacking,
+    int& shootCooldown,
+    Camera& camera
+) 
+{
+    // 生成攻击
+    if (isAttacking) {
+        if (attackArray[0].type == MELEE)
+            SpawnMelee(attacker, attackArray, attackMax);
+        else
+            SpawnRange(attacker, attackArray, attackMax, shootCooldown);
+    }
+
+    for (int i = 0; i < attackMax; i++) {
+        Attack& atk = attackArray[i];
+
+        if (!atk.isAlive) continue;
+
+		
+		if (atk.type == MELEE) {
+			atk.pos.x = attacker.pos.x + attacker.dir.x * attacker.width;
+			atk.pos.y = attacker.pos.y + attacker.dir.y * attacker.height;
+		}
+
+        UpdateAttack(atk);
+
+      
+
+        if (CheckHit(atk, target)) {
+            atk.isAlive = false;
+
+            ApplyDamage(target, atk.damage);
+            ApplyCameraShake(camera, 5, 10);
+        }
+    }
 }
 
 
@@ -394,7 +464,6 @@ void ALL(Player& player, Boss& boss, Mouse& mouse, Camera& camera, Attack melee[
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	Player player = InitPlayer(640.0f, 600.0f);
-
 	Boss boss = InitBoss(640.0f, 320.0f);
 
 	Mouse mouse{
@@ -434,6 +503,11 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	UI scoreBtn_return{540, 100, 200, 100, "RETURN"};
 	// タイトルに戻す
 	UI scoreBtn_return_title{540, 520, 200, 100, "RETURN_TITLE"};
+
+
+	//////////////////////////////////////////////////
+
+	
 
 	// ライブラリの初期化
 	Novice::Initialize(kWindowTitle, 1280, 720);
@@ -510,6 +584,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				camera.offset = {0.0f, 0.0f};
 			}
 			
+			if (player.base.shootCooldown > 0) {
+				player.base.shootCooldown--;
+			}
+
 
 			// player無敵時間の管理(無敵時間関数管理ずっとbug出てくる、まず、このまま使う）
 			if (player.base.isInvincible) {
@@ -557,27 +635,23 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				Dash(player.base);
 				Move(player.base.pos, player.base.vec, player.base.width, player.base.height, player.base.speed);
 				
-
-				
-
-				// 弾連続発射
-
-				bool isShooting = Novice::IsPressMouse(0);
-				bool isAttacking = Novice::IsPressMouse(0);
+				bool isAttacking = false;
 				if (keys[DIK_E] && !preKeys[DIK_E]) {
 					type = !type;
 				}
 				if (type == false) {
-					CharacterRange(player.base, boss.base, player_range, rangeMax, player.base.shootCooldown, isShooting, camera);
+					isAttacking = Novice::IsPressMouse(0);
+					AttackSystem_UpdateAll(player.base, boss.base, player_range, rangeMax, isAttacking, player.base.shootCooldown, camera);
 				} else if (type == true) {
-					CharacterMelee(player.base, boss.base, player_melee, meleeMax, isAttacking);
+					isAttacking = Novice::IsTriggerMouse(0);
+					AttackSystem_UpdateAll(player.base, boss.base, player_melee, meleeMax, isAttacking, player.base.shootCooldown, camera);
 				}
 				
 				
 
 				// playerとボースの当たり判定
 				if (!player.base.isInvincible) {
-					if (isHit(player.base.pos, player.base.width, player.base.height, boss.base.pos, boss.base.width, boss.base.height)) {
+					if (isHit(player.base,boss.base)) {
 						player.base.hp -= boss.base.damage;
 						player.base.isInvincible = true;
 						player.base.invincible_time = 60;
