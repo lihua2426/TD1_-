@@ -250,8 +250,8 @@ void SpawPrt(Vector2 hitPos, ParticleType type, Particle prt[], int prtMax) {
 				prt[i].lifeTime = 30 + rand() % 30;
 				break;
 			case PRT_DASH:
-				//prt[i].width = prt[i].height = 5;
-				//prt[i].lifeTime = 20;
+				// prt[i].width = prt[i].height = 5;
+				// prt[i].lifeTime = 20;
 				break;
 			}
 
@@ -504,10 +504,10 @@ void ALL(Player& player, Boss& boss, Camera& camera, Attack melee[], Attack rang
 	boss = InitBoss(640.0f, 320.0f);
 
 	//
-	//mouse = {
-	  //  .pos = {0.0f, 0.0f},
-	  //  .dir = {0.0f, 0.0f},
-	   // .isMouse = false,
+	// mouse = {
+	//  .pos = {0.0f, 0.0f},
+	//  .dir = {0.0f, 0.0f},
+	// .isMouse = false,
 	//};
 	//
 	camera = {
@@ -642,7 +642,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			if (startBtn.isClicked) {
 				game_state = FIGHT;
-				ALL(player, boss,  camera, player_melee, player_range, meleeMax, rangeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 			}
 
 			break;
@@ -756,7 +756,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			}
 			UpdateButton(scoreBtn_return_title);
 			if (scoreBtn_return_title.isClicked) {
-				ALL(player, boss,  camera, player_melee, player_range, meleeMax, rangeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = START;
 			}
 
@@ -773,7 +773,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			}
 			UpdateButton(scoreBtn_return_title);
 			if (scoreBtn_return_title.isClicked) {
-				ALL(player, boss,  camera, player_melee, player_range, meleeMax, rangeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = START;
 			}
 			break;
@@ -786,7 +786,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			UpdateButton(menuBtn_return);
 			if (menuBtn_return.isClicked) {
-				ALL(player, boss,  camera, player_melee, player_range, meleeMax, rangeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = FIGHT;
 			}
 			UpdateButton(menuBtn_return_title);
