@@ -19,28 +19,33 @@ enum AttackType {
 	MELEE, // 近接攻撃
 	RANGE, // 弾発射
 };
-bool type = false;
+bool attack_type = false;
+
+enum ParticleType {
+	PRT_BLODD,
+	PRT_DASH,
+};
 
 struct Vector2 {
 	float x;
 	float y;
 };
 
-//マウス
+// マウス
 struct Mouse {
 	Vector2 pos;
 	Vector2 dir;
 	bool isMouse;
 };
 
-//カメラ宣言
+// カメラ宣言
 struct Camera {
 	Vector2 offset;
 	int shankeTime;
 	float shakeProw;
 };
 
-//UI宣言
+// UI宣言
 struct UI {
 	int x, y, w, h;
 	const char* label;
@@ -59,8 +64,8 @@ struct Character {
 	int shootCooldown;   //
 	float width;         // サイズ
 	float height;
-	float speed;       // 移動のスピード
-	float dash_speed;  // 瞬間加速
+	float speed;      // 移動のスピード
+	float dash_speed; // 瞬間加速
 	float dash_time;
 	float normal_speed;
 	bool isDash;       // 加速かどうか
@@ -94,7 +99,7 @@ struct Attack {
 	bool hasHit;  // ビットしたかどうか
 };
 
-//粒子システム
+// 粒子システム
 struct Particle {
 	Vector2 pos;
 	Vector2 vec;
@@ -102,13 +107,17 @@ struct Particle {
 	float height;
 	int lifeTime;
 	bool isAlive;
+	ParticleType type;
 };
 
+const int prtmax = 100;
+Particle blood[prtmax]{};
+
 //=================================================================
-//初期化
+// 初期化
 //===============================================================--
 
-//プレイヤ
+// プレイヤ
 Player InitPlayer(float x, float y) {
 	Player p{};
 	p.base.pos = {x, y};
@@ -131,13 +140,13 @@ Player InitPlayer(float x, float y) {
 	return p;
 }
 
-//ボース
+// ボース
 Boss InitBoss(float x, float y) {
 	Boss b{};
 	b.base.pos = {x, y};
 	b.base.vec = {0.0f, 0.0f};
 	b.base.dir = {1.0f, 0.0f};
-	b.base.hp = 100;
+	b.base.hp = 300;
 	b.base.damage = 10;
 	b.base.invincible_time = 60;
 	b.base.shootCooldown = 0;
@@ -154,8 +163,7 @@ Boss InitBoss(float x, float y) {
 	return b;
 }
 
-
-//共有近接攻撃
+// 共有近接攻撃
 Attack Attack_Melee(Vector2 pos, Vector2 dir) {
 	Attack m{};
 	m.pos = pos;
@@ -172,6 +180,7 @@ Attack Attack_Melee(Vector2 pos, Vector2 dir) {
 
 	m.pos.x += dir.x * m.width;
 	m.pos.y += dir.y * m.height;
+
 	return m;
 }
 
@@ -179,7 +188,7 @@ Attack Attack_Melee(Vector2 pos, Vector2 dir) {
 Attack Attack_Range(Vector2 pos, Vector2 dir) {
 	Attack r{};
 
-	//斜め移動の処理//正規化
+	// 斜め移動の処理//正規化
 	float length = sqrtf(dir.x * dir.x + dir.y * dir.y);
 	if (length > 0) {
 		dir.x /= length;
@@ -196,36 +205,124 @@ Attack Attack_Range(Vector2 pos, Vector2 dir) {
 	r.speed = 20.0f;
 	r.isAlive = false;
 	r.hasHit = false;
+
 	return r;
 }
 
+// 粒子システム
+Particle InitPrt(Vector2 pos, ParticleType type) {
+	Particle p{};
+	p.pos = pos;
+	p.vec = {0.0f, 0.0f};
+	p.width = 5.0f;
+	p.height = 5.0f;
+	p.isAlive = true;
+	p.lifeTime = 0;
+	p.type = type;
+
+	return p;
+}
+
 //===============================================================================
-//関数
+// 関数
 //================================================================================
 
-//共有のダシュル関数
-void Dash(Character& dasher) {//dasherは、ダシュルする人
-	//もしダシュルしない場合は、処理/終わり
-	if (!dasher.isDash) {
-		return;
-	}
-	//スピード変更、時間始まる、
-	dasher.speed = dasher.dash_speed;
-	dasher.dash_time++;
+//============================================================================================
+// 粒子システムについて関数
+//=====================================================================================================
+// 粒子の生成
+void SpawPrt(Vector2 hitPos, ParticleType type, Particle prt[], int prtMax) {
 
-	//もし、ダシュル中、時間20かかる、ダシュル終わる
-	if (dasher.isDash) {
-		if (dasher.dash_time >= 20) {
-			dasher.isDash = false;
-			dasher.dash_time = 0;
-		
-			dasher.speed = dasher.normal_speed;
+	for (int i = 0; i < prtMax; i++) {
+		float angle = 0.0f;
+		float speed = 0.0f;
+		if (!prt[i].isAlive) {
+
+			// Particle p{};
+			prt[i] = InitPrt(hitPos, type);
+
+			switch (type) {
+			case PRT_BLODD:
+				angle = (float)(rand() % 360) * 3.14159f / 180.0f;
+				speed = (float)(rand() % 15 + 5) / 10.0f;
+
+				prt[i].width = prt[i].height = 4.0f + rand() % 3;
+				prt[i].lifeTime = 30 + rand() % 30;
+				break;
+			case PRT_DASH:
+				//prt[i].width = prt[i].height = 5;
+				//prt[i].lifeTime = 20;
+				break;
+			}
+
+			if (type == PRT_DASH) {
+				speed *= 0.4f;
+			}
+
+			prt[i].vec.x = cosf(angle) * speed;
+			prt[i].vec.y = sinf(angle) * speed;
+
+			// prt[i].lifeTime = 20 + rand() % 120;
+
+			prt[i].isAlive = true;
 		}
 	}
 }
 
+// 粒子の存在時間関数
+void UpdatePrt(Particle& prt) {
+	if (!prt.isAlive) {
+		return;
+	}
+	prt.lifeTime--;
+	if (prt.lifeTime <= 0) {
+		prt.isAlive = false;
+	}
 
+	prt.pos.x += prt.vec.x;
+	prt.pos.y += prt.vec.y;
 
+	prt.vec.x *= 0.9f;
+	prt.vec.y *= 0.9f;
+
+	if (prt.pos.x < 0 || prt.pos.x > 1280 || prt.pos.y < 0 || prt.pos.y > 720) {
+		prt.isAlive = false;
+	}
+}
+
+// 生成条件
+void Particle_UpdateAll(Particle prt[], int prtMax) {
+	for (int i = 0; i < prtMax; i++) {
+		if (prt[i].isAlive) {
+			UpdatePrt(prt[i]);
+		}
+	}
+}
+//========================================================================================================================================================================================================
+//========================================================================================================================================================================================================
+//========================================================================================================================================================================================================
+
+// 共有のダシュル関数
+void Dash(Character& dasher) { // dasherは、ダシュルする人
+	// もしダシュルしない場合は、処理/終わり
+	if (!dasher.isDash) {
+		return;
+	}
+	// スピード変更、時間始まる、
+	dasher.speed = dasher.dash_speed;
+	dasher.dash_time++;
+
+	// もし、ダシュル中、時間20かかる、ダシュル終わる
+	if (dasher.isDash) {
+		SpawPrt(dasher.pos, PRT_DASH, blood, prtmax);
+		if (dasher.dash_time >= 20) {
+			dasher.isDash = false;
+			dasher.dash_time = 0;
+
+			dasher.speed = dasher.normal_speed;
+		}
+	}
+}
 
 // 共有の斜め移動スピード正規化と画面出てない制定
 void Move(Vector2& pos, Vector2& vec, float width, float height, float speed) {
@@ -252,28 +349,12 @@ void Move(Vector2& pos, Vector2& vec, float width, float height, float speed) {
 }
 
 // 共有の当たり判定の関数（aabb判定）
-bool isHit(const Character& a, const Character& b) {
-	return (a.pos.x < b.pos.x + b.width && a.pos.x + a.width > b.pos.x && a.pos.y < b.pos.y + b.height && a.pos.y + a.height > b.pos.y);
-}
+bool isHit(const Character& a, const Character& b) { return (a.pos.x < b.pos.x + b.width && a.pos.x + a.width > b.pos.x && a.pos.y < b.pos.y + b.height && a.pos.y + a.height > b.pos.y); }
 
-// 攻撃の存在時間と画面出てない設定
-void isAttack(Attack& atk) {
-	if (!atk.isAlive) {
-		return;
-	}
-	//攻撃の存在時間減る
-	atk.lifeTime--;
-	if (atk.lifeTime <= 0) {
-		atk.isAlive = false;
-	}
-
-	if (atk.pos.x < 0 || atk.pos.x + atk.width > 1280 || atk.pos.y < 0 || atk.pos.y + atk.height > 720) {
-		atk.isAlive = false;
-	}
-}
-
- //近接攻撃を生成する関数
-//
+//============================================================================================
+// 攻撃について関数
+// ==============================================================================================
+// 近接攻撃を生成する関数
 void SpawnMelee(Character& attacker, Attack melee[], int meleeMax) {
 	for (int i = 0; i < meleeMax; i++) {
 		if (!melee[i].isAlive) {
@@ -284,7 +365,7 @@ void SpawnMelee(Character& attacker, Attack melee[], int meleeMax) {
 	}
 }
 
-
+// 弾攻撃を生成する関数
 void SpawnRange(Character& attacker, Attack range[], int rangeMax, int& cooldown) {
 	if (cooldown > 0)
 		return;
@@ -293,12 +374,13 @@ void SpawnRange(Character& attacker, Attack range[], int rangeMax, int& cooldown
 		if (!range[i].isAlive) {
 			range[i] = Attack_Range(attacker.pos, attacker.dir);
 			range[i].isAlive = true;
-			cooldown = 5; 
+			cooldown = 5;
 			return;
 		}
 	}
 }
 
+// 共有攻撃存在時間関数
 void UpdateAttack(Attack& atk) {
 	if (!atk.isAlive)
 		return;
@@ -309,80 +391,83 @@ void UpdateAttack(Attack& atk) {
 		return;
 	}
 
-	// 移动（仅远程）
+	// 攻撃の移動（弾）
 	atk.pos.x += atk.vec.x * atk.speed;
 	atk.pos.y += atk.vec.y * atk.speed;
 
-	// 画面外
+	// 画面外出てない
 	if (atk.pos.x < 0 || atk.pos.x > 1280 || atk.pos.y < 0 || atk.pos.y > 720) {
 		atk.isAlive = false;
 	}
 }
 
+// 共有無敵関数
 void ApplyDamage(Character& target, int damage) {
 	if (target.isInvincible)
 		return;
 
 	target.hp -= damage;
 	target.isInvincible = true;
-	target.invincible_time = 30; // 你原本的逻辑
+	target.invincible_time = 30;
 }
 
+// 画面揺れる時間
 void ApplyCameraShake(Camera& camera, float power, int time) {
 	camera.shankeTime = time;
 	camera.shakeProw = power;
 }
 
+// 共有攻撃の関数（前の当たり判定関数と違う、攻撃の宣言Characterを使ってないので）
 bool CheckHit(const Attack& atk, const Character& target) {
 	return (atk.pos.x < target.pos.x + target.width && atk.pos.x + atk.width > target.pos.x && atk.pos.y < target.pos.y + target.height && atk.pos.y + atk.height > target.pos.y);
 }
 
+// 全ての攻撃の更新関数
+void AttackSystem_UpdateAll(Character& attacker, Character& target, Attack attackArray[], int attackMax, bool isAttacking, int& shootCooldown, Camera& camera) {
+	// 生成攻击
+	if (isAttacking) {
+		if (attackArray[0].type == MELEE)
+			SpawnMelee(attacker, attackArray, attackMax); // 近接攻撃
+		else
+			SpawnRange(attacker, attackArray, attackMax, shootCooldown); // 弾
+	}
 
-void AttackSystem_UpdateAll(
-    Character& attacker,
-    Character& target,
-    Attack attackArray[],
-    int attackMax,
-    bool isAttacking,
-    int& shootCooldown,
-    Camera& camera
-) 
-{
-    // 生成攻击
-    if (isAttacking) {
-        if (attackArray[0].type == MELEE)
-            SpawnMelee(attacker, attackArray, attackMax);
-        else
-            SpawnRange(attacker, attackArray, attackMax, shootCooldown);
-    }
+	for (int i = 0; i < attackMax; i++) {
+		Attack& atk = attackArray[i];
 
-    for (int i = 0; i < attackMax; i++) {
-        Attack& atk = attackArray[i];
+		if (!atk.isAlive)
+			continue;
 
-        if (!atk.isAlive) continue;
-
-		
+		// 近接攻撃の場所
 		if (atk.type == MELEE) {
 			atk.pos.x = attacker.pos.x + attacker.dir.x * attacker.width;
 			atk.pos.y = attacker.pos.y + attacker.dir.y * attacker.height;
 		}
 
-        UpdateAttack(atk);
+		// 更新存在時間関数読み込み
+		UpdateAttack(atk);
 
-      
+		// もし、攻撃判定が成功したら，
+		if (CheckHit(atk, target)) {
+			if (atk.type == RANGE) {
+				atk.isAlive = false;
+			}
 
-        if (CheckHit(atk, target)) {
-            atk.isAlive = false;
+			ApplyDamage(target, atk.damage); // ダメージの関数読み込み
+			ApplyCameraShake(camera, 5, 10);
 
-            ApplyDamage(target, atk.damage);
-            ApplyCameraShake(camera, 5, 10);
-        }
-    }
+			Vector2 hitPos;
+			hitPos.x = atk.pos.x + atk.width * 0.5f;
+			hitPos.y = atk.pos.y + atk.height * 0.5f;
+			SpawPrt(hitPos, PRT_BLODD, blood, prtmax);
+		}
+	}
 }
+//================================================================================================================================================================================================================
+//================================================================================================================================================================================================================
+//================================================================================================================================================================================================================
 
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// 画面が揺れるの強さ
 void Shak(Camera& camera) {
 	if (camera.shankeTime > 0) {
 		camera.shankeTime--;
@@ -394,31 +479,36 @@ void Shak(Camera& camera) {
 	}
 }
 
+// マオスとUI　BOXの当たり判定
 void UpdateButton(UI& box) {
 	int mouseX, mouseY;
 	Novice::GetMousePosition(&mouseX, &mouseY);
 
-	box.isHover = (mouseX > box.x && mouseX < box.x + box.w && mouseY > box.y && mouseY < box.y + box.h);
-
-	box.isClicked = box.isHover && Novice::IsTriggerMouse(0);
+	box.isHover = (mouseX > box.x && mouseX < box.x + box.w && mouseY > box.y && mouseY < box.y + box.h); // マウスがボタンの範囲に入っているかどうか
+	box.isClicked = box.isHover && Novice::IsTriggerMouse(0);                                             // BoX中に左クリック
 }
 
+// BOXを描画する
 void DrawButton(const UI& box) {
-	int color = box.isHover ? BLACK: GREEN;
+	int color = box.isHover ? BLACK : GREEN;
 	Novice::DrawBox(box.x, box.y, box.w, box.h, 0.0f, color, kFillModeSolid);
 	Novice::ScreenPrintf(box.x + box.w / 2 - 30, box.y + box.h / 2 - 5, box.label);
 }
 
-void ALL(Player& player, Boss& boss, Mouse& mouse, Camera& camera, Attack melee[], Attack range[], int meleeMax, int rangeMax) {
+// もう一回遊び、数値をリセットする
+void ALL(Player& player, Boss& boss, Camera& camera, Attack melee[], Attack range[], int meleeMax, int rangeMax) {
+	attack_type = false;
+
 	player = InitPlayer(640.0f, 600.0f);
 	//
 	boss = InitBoss(640.0f, 320.0f);
+
 	//
-	mouse = {
-	    .pos = {0.0f, 0.0f},
-	    .dir = {0.0f, 0.0f},
-	    .isMouse = false,
-	};
+	//mouse = {
+	  //  .pos = {0.0f, 0.0f},
+	  //  .dir = {0.0f, 0.0f},
+	   // .isMouse = false,
+	//};
 	//
 	camera = {
 	    .offset = {0.0f, 0.0f},
@@ -441,13 +531,11 @@ void ALL(Player& player, Boss& boss, Mouse& mouse, Camera& camera, Attack melee[
 		melee[i].isAlive = false;
 		melee[i].hasHit = false;
 
-		melee[i].pos.x += player.base. dir.x * melee[i].width;
+		melee[i].pos.x += player.base.dir.x * melee[i].width;
 		melee[i].pos.y += player.base.dir.y * melee[i].height;
-	
-	
 	}
 	for (int i = 0; i < rangeMax; i++) {
-		range[i].pos =player.base.pos;
+		range[i].pos = player.base.pos;
 		range[i].vec = player.base.dir;
 		range[i].type = RANGE;
 		range[i].damage = 10;
@@ -504,10 +592,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	// タイトルに戻す
 	UI scoreBtn_return_title{540, 520, 200, 100, "RETURN_TITLE"};
 
-
 	//////////////////////////////////////////////////
-
-	
 
 	// ライブラリの初期化
 	Novice::Initialize(kWindowTitle, 1280, 720);
@@ -529,7 +614,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		/// ↓更新処理ここから
 		///
 		///
-		// マウス
+
+		// マウスの正規化
 		int mouseX = 0, mouseY = 0;
 		Novice::GetMousePosition(&mouseX, &mouseY);
 		mouse.pos.x = (float)mouseX;
@@ -550,13 +636,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		switch (game_state) {
 			// タイトル
 		case START: {
-			ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
+			ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 
 			UpdateButton(startBtn);
 
 			if (startBtn.isClicked) {
 				game_state = FIGHT;
-				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
+				ALL(player, boss,  camera, player_melee, player_range, meleeMax, rangeMax);
 			}
 
 			break;
@@ -583,11 +669,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			} else {
 				camera.offset = {0.0f, 0.0f};
 			}
-			
+
 			if (player.base.shootCooldown > 0) {
 				player.base.shootCooldown--;
 			}
-
 
 			// player無敵時間の管理(無敵時間関数管理ずっとbug出てくる、まず、このまま使う）
 			if (player.base.isInvincible) {
@@ -634,24 +719,24 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				// 移動関数使う
 				Dash(player.base);
 				Move(player.base.pos, player.base.vec, player.base.width, player.base.height, player.base.speed);
-				
+
 				bool isAttacking = false;
 				if (keys[DIK_E] && !preKeys[DIK_E]) {
-					type = !type;
+					attack_type = !attack_type;
 				}
-				if (type == false) {
+				if (attack_type == false) {
 					isAttacking = Novice::IsPressMouse(0);
 					AttackSystem_UpdateAll(player.base, boss.base, player_range, rangeMax, isAttacking, player.base.shootCooldown, camera);
-				} else if (type == true) {
+
+				} else if (attack_type == true) {
 					isAttacking = Novice::IsTriggerMouse(0);
 					AttackSystem_UpdateAll(player.base, boss.base, player_melee, meleeMax, isAttacking, player.base.shootCooldown, camera);
 				}
-				
-				
 
+				Particle_UpdateAll(blood, prtmax);
 				// playerとボースの当たり判定
 				if (!player.base.isInvincible) {
-					if (isHit(player.base,boss.base)) {
+					if (isHit(player.base, boss.base)) {
 						player.base.hp -= boss.base.damage;
 						player.base.isInvincible = true;
 						player.base.invincible_time = 60;
@@ -666,12 +751,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			UpdateButton(scoreBtn_return);
 			if (scoreBtn_return.isClicked) {
-				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = FIGHT;
 			}
 			UpdateButton(scoreBtn_return_title);
 			if (scoreBtn_return_title.isClicked) {
-				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
+				ALL(player, boss,  camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = START;
 			}
 
@@ -683,12 +768,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			UpdateButton(scoreBtn_return);
 			if (scoreBtn_return.isClicked) {
-				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = FIGHT;
 			}
 			UpdateButton(scoreBtn_return_title);
 			if (scoreBtn_return_title.isClicked) {
-				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
+				ALL(player, boss,  camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = START;
 			}
 			break;
@@ -701,12 +786,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			UpdateButton(menuBtn_return);
 			if (menuBtn_return.isClicked) {
-				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
+				ALL(player, boss,  camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = FIGHT;
 			}
 			UpdateButton(menuBtn_return_title);
 			if (menuBtn_return_title.isClicked) {
-				ALL(player, boss, mouse, camera, player_melee, player_range, meleeMax, rangeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = START;
 			}
 		}
@@ -735,7 +820,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Novice::DrawBox(0 - (int)camera.offset.x, 0 - (int)camera.offset.y, kWindowWitch, kWindowHeight, 0.0f, BLACK, kFillModeSolid);
 
 			// boss
-			Novice::DrawBox((int)boss.base.pos.x - (int)camera.offset.x, (int)boss.base.pos.y - (int)camera.offset.y, (int)boss.base.width, (int)boss.base.height, 0.0f, RED, kFillModeSolid);
+			Novice::DrawBox((int)boss.base.pos.x - (int)camera.offset.x, (int)boss.base.pos.y - (int)camera.offset.y, (int)boss.base.width, (int)boss.base.height, 0.0f, WHITE, kFillModeWireFrame);
 			// player
 			Novice::DrawBox((int)player.base.pos.x - (int)camera.offset.x, (int)player.base.pos.y - (int)camera.offset.y, (int)player.base.width, (int)player.base.height, 0.0f, WHITE, kFillModeSolid);
 
@@ -753,7 +838,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				}
 			}
 
-			// UIポインタの絵
+			// 血
+
+			for (int i = 0; i < prtmax; i++) {
+				if (blood[i].isAlive) {
+					Novice::DrawBox((int)blood[i].pos.x - (int)camera.offset.x, (int)blood[i].pos.y - (int)camera.offset.y, (int)blood[i].width, (int)blood[i].height, 0.0f, RED, kFillModeSolid);
+				}
+			}
 
 			// 调试
 			int Y = 0;
@@ -771,8 +862,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				Novice::ScreenPrintf(0, Y += H, "BOSS isInvincible: %d", boss.base.isInvincible);
 				Novice::ScreenPrintf(0, Y += H, "BOSS invincible_time: %d", boss.base.invincible_time);
 				Novice::ScreenPrintf(0, Y += H, "shakTime: %d", camera.shankeTime);
-				Novice::ScreenPrintf(0, Y += H, "dashTime: %f",player.base.dash_time);
+				Novice::ScreenPrintf(0, Y += H, "dashTime: %f", player.base.dash_time);
 				Novice::ScreenPrintf(0, Y += H, "nowSpeed: %f", player.base.speed);
+				Novice::ScreenPrintf(0, Y += H, "bossHit: %d", boss.base.isHit);
+				Novice::ScreenPrintf(0, Y += H, "prtIsAlive: %d", blood->isAlive);
 			}
 
 			Novice::DrawLine((int)px, (int)py, (int)mouse.pos.x, (int)mouse.pos.y, RED);
