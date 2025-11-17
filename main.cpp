@@ -113,6 +113,14 @@ struct Particle {
 const int prtmax = 100;
 Particle blood[prtmax]{};
 
+// 弾リロードする
+struct Reload {
+	float reload_time;
+	int nowBullet;
+	int bulletMax;
+	bool isReload;
+};
+
 //=================================================================
 // 初期化
 //===============================================================--
@@ -222,6 +230,15 @@ Particle InitPrt(Vector2 pos, ParticleType type) {
 
 	return p;
 }
+
+// リロード関数
+// Reload InitReload(int rangeMax) {
+// Reload r{};
+// r.isReload == false;
+// r.bulletMax = rangeMax;
+// r.reload_time = 0;
+// return r;
+//}
 
 //===============================================================================
 // 関数
@@ -354,6 +371,9 @@ bool isHit(const Character& a, const Character& b) { return (a.pos.x < b.pos.x +
 //============================================================================================
 // 攻撃について関数
 // ==============================================================================================
+
+// void AppltReload()
+
 // 近接攻撃を生成する関数
 void SpawnMelee(Character& attacker, Attack melee[], int meleeMax) {
 	for (int i = 0; i < meleeMax; i++) {
@@ -366,17 +386,39 @@ void SpawnMelee(Character& attacker, Attack melee[], int meleeMax) {
 }
 
 // 弾攻撃を生成する関数
-void SpawnRange(Character& attacker, Attack range[], int rangeMax, int& cooldown) {
+void SpawnRange(Character& attacker, Attack range[], int rangeMax, int& cooldown, Reload& reload) {
 	if (cooldown > 0)
 		return;
 
 	for (int i = 0; i < rangeMax; i++) {
-		if (!range[i].isAlive) {
+		if (!range[i].isAlive && !reload.isReload) {
 			range[i] = Attack_Range(attacker.pos, attacker.dir);
 			range[i].isAlive = true;
 			cooldown = 5;
+			reload.nowBullet--;
+			if (reload.nowBullet <= 0) {
+				reload.isReload = true;
+
+				reload.reload_time = 90;
+			}
 			return;
 		}
+	}
+}
+
+// リロードの時間関数
+void UpdateReload(Reload& reload, int rangMax) {
+	if (!reload.isReload) {
+		return;
+	}
+
+	reload.reload_time--;
+	if (reload.reload_time <= 0) {
+		reload.isReload = false;
+		reload.nowBullet = rangMax;
+		reload.bulletMax -= reload.nowBullet;
+		reload.reload_time = 90;
+		return;
 	}
 }
 
@@ -423,13 +465,13 @@ bool CheckHit(const Attack& atk, const Character& target) {
 }
 
 // 全ての攻撃の更新関数
-void AttackSystem_UpdateAll(Character& attacker, Character& target, Attack attackArray[], int attackMax, bool isAttacking, int& shootCooldown, Camera& camera) {
+void AttackSystem_UpdateAll(Character& attacker, Character& target, Attack attackArray[], int attackMax, bool isAttacking, int& shootCooldown, Camera& camera, Reload& reload) {
 	// 生成攻击
 	if (isAttacking) {
 		if (attackArray[0].type == MELEE)
 			SpawnMelee(attacker, attackArray, attackMax); // 近接攻撃
 		else
-			SpawnRange(attacker, attackArray, attackMax, shootCooldown); // 弾
+			SpawnRange(attacker, attackArray, attackMax, shootCooldown, reload); // 弾
 	}
 
 	for (int i = 0; i < attackMax; i++) {
@@ -463,6 +505,7 @@ void AttackSystem_UpdateAll(Character& attacker, Character& target, Attack attac
 		}
 	}
 }
+
 //================================================================================================================================================================================================================
 //================================================================================================================================================================================================================
 //================================================================================================================================================================================================================
@@ -572,6 +615,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	Attack player_range[rangeMax]{};
 	// Attack boss_melee[meleeMax]{};
 	// Attack boss_range[rangeMax]{};
+
+	// リロード
+	Reload reload{
+	    .reload_time = 90,
+
+	    .nowBullet = rangeMax,
+	    .bulletMax = 200,
+
+	    .isReload = false,
+	};
 
 	// タイトル
 	UI startBtn{540, 300, 200, 60, "START"};
@@ -720,20 +773,30 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				Dash(player.base);
 				Move(player.base.pos, player.base.vec, player.base.width, player.base.height, player.base.speed);
 
+				if (keys[DIK_R] && !preKeys[DIK_R]) {
+					reload.isReload = true;
+					reload.reload_time = 90;
+				}
+
+				UpdateReload(reload, rangeMax);
+
 				bool isAttacking = false;
 				if (keys[DIK_E] && !preKeys[DIK_E]) {
 					attack_type = !attack_type;
 				}
 				if (attack_type == false) {
+					// if (!reload.isReload) {
 					isAttacking = Novice::IsPressMouse(0);
-					AttackSystem_UpdateAll(player.base, boss.base, player_range, rangeMax, isAttacking, player.base.shootCooldown, camera);
+					AttackSystem_UpdateAll(player.base, boss.base, player_range, rangeMax, isAttacking, player.base.shootCooldown, camera, reload);
+					//}
 
 				} else if (attack_type == true) {
 					isAttacking = Novice::IsTriggerMouse(0);
-					AttackSystem_UpdateAll(player.base, boss.base, player_melee, meleeMax, isAttacking, player.base.shootCooldown, camera);
+					AttackSystem_UpdateAll(player.base, boss.base, player_melee, meleeMax, isAttacking, player.base.shootCooldown, camera, reload);
 				}
 
 				Particle_UpdateAll(blood, prtmax);
+
 				// playerとボースの当たり判定
 				if (!player.base.isInvincible) {
 					if (isHit(player.base, boss.base)) {
@@ -867,6 +930,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				Novice::ScreenPrintf(0, Y += H, "nowSpeed: %f", player.base.speed);
 				Novice::ScreenPrintf(0, Y += H, "bossHit: %d", boss.base.isHit);
 				Novice::ScreenPrintf(0, Y += H, "prtIsAlive: %d", blood->isAlive);
+				Novice::ScreenPrintf(0, Y += H, "nowBullet: %d", reload.nowBullet);
+				Novice::ScreenPrintf(0, Y += H, "ReloadMax: %d", reload.bulletMax);
+				Novice::ScreenPrintf(0, Y += H, "ReloadTime: %f", reload.reload_time);
+				Novice::ScreenPrintf(0, Y += H, "isReload: %d", reload.isReload);
 			}
 
 			Novice::DrawLine((int)px, (int)py, (int)mouse.pos.x, (int)mouse.pos.y, RED);
