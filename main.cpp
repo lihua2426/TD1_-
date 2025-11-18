@@ -99,6 +99,11 @@ struct Attack {
 	bool hasHit;  // ビットしたかどうか
 };
 
+struct HitEvent {
+	bool hit;       // 当たり判定成功かどうか
+	Vector2 hitPos; // 当たった場所（血用）
+};
+
 // 粒子システム
 struct Particle {
 	Vector2 pos;
@@ -479,21 +484,18 @@ void SpawnMelee(Character& attacker, Attack melee[], int meleeMax) {
 }
 
 // 弾攻撃を生成する関数
-void SpawnRange(Character& attacker, Attack range[], int rangeMax, int& cooldown, Reload& reload) {
-	if (cooldown > 0)
+void SpawnRange(Character& attacker, Attack range[], int rangeMax, int& cooldown) {
+	if (cooldown > 0) {
 		return;
+	}
+		
 
 	for (int i = 0; i < rangeMax; i++) {
-		if (!range[i].isAlive && !reload.isReload) {
+		if (!range[i].isAlive ) {
 			range[i] = Attack_Range(attacker.pos, attacker.dir);
 			range[i].isAlive = true;
 			cooldown = 5;
-			reload.nowBullet--;
-			if (reload.nowBullet <= 0) {
-				reload.isReload = true;
-
-				reload.reload_time = 90;
-			}
+			
 			return;
 		}
 	}
@@ -508,8 +510,18 @@ void UpdateReload(Reload& reload, int rangMax) {
 	reload.reload_time--;
 	if (reload.reload_time <= 0) {
 		reload.isReload = false;
-		reload.nowBullet = rangMax;
-		reload.bulletMax -= reload.nowBullet;
+		int need = rangMax - reload.nowBullet; 
+		if (need < 0)
+			need = 0;
+
+		int canLoad = reload.bulletMax; // 予備弾
+		if (canLoad > need) {
+			canLoad = need;
+		}
+
+		// ---- 実際に装填 ----
+		reload.nowBullet += canLoad;
+		reload.bulletMax -= canLoad;
 		reload.reload_time = 90;
 		return;
 	}
@@ -558,30 +570,44 @@ bool CheckHit(const Attack& atk, const Character& target) {
 }
 
 // 全ての攻撃の更新関数
-void AttackSystem_UpdateAll(Character& attacker, Character& target, Attack attackArray[], int attackMax, bool isAttacking, int& shootCooldown, Camera& camera, Reload& reload) {
-	// 生成攻击
+// 全ての攻撃の更新関数（副作用なし・純粋処理）
+HitEvent AttackSystem_UpdateAll(Character& attacker, Character& target, Attack attackArray[], int attackMax, bool isAttacking, int& shootCooldown) {
+	HitEvent result{};
+	result.hit = false;
+
+	// 生成攻撃（近接／遠距離）
 	if (isAttacking) {
-		if (attackArray[0].type == MELEE)
-			SpawnMelee(attacker, attackArray, attackMax); // 近接攻撃
-		else
-			SpawnRange(attacker, attackArray, attackMax, shootCooldown, reload); // 弾
+
+		if (attackArray[0].type == MELEE) {
+
+			// 共有近接攻撃
+			SpawnMelee(attacker, attackArray, attackMax);
+
+		} else {
+
+			// 共有弾攻撃
+			if (shootCooldown <= 0) {
+				SpawnRange(attacker, attackArray, attackMax, shootCooldown);
+			}
+		}
 	}
 
+	// 更新処理
 	for (int i = 0; i < attackMax; i++) {
-		Attack& atk = attackArray[i];
 
+		Attack& atk = attackArray[i];
 		if (!atk.isAlive)
 			continue;
 
-		// 近接攻撃の場所
+		// 近接位置更新
 		if (atk.type == MELEE) {
 			atk.pos.x = attacker.pos.x + attacker.dir.x * attacker.width;
 			atk.pos.y = attacker.pos.y + attacker.dir.y * attacker.height;
 		}
 
-		// 更新存在時間関数読み込み
-		UpdateAttack(atk);
+		UpdateAttack(atk); // 存在時間・移動の関数
 
+		// タイルと弾の当たり判定関数
 		if (atk.type == RANGE) {
 			if (BulletTileHit(atk, map, tile)) {
 				atk.isAlive = false;
@@ -589,23 +615,19 @@ void AttackSystem_UpdateAll(Character& attacker, Character& target, Attack attac
 			}
 		}
 
-		// もし、攻撃判定が成功したら，
-		if (CheckHit(atk, target)) {
-			if (atk.type == RANGE) {
+		// 攻撃命中（
+		if (CheckHit( atk, target)) {
 
-				atk.isAlive = false;
-			}
+			result.hit = true;
+			result.hitPos = {atk.pos.x + atk.width * 0.5f, atk.pos.y + atk.height * 0.5f};
 
-			ApplyDamage(target, atk.damage); // ダメージの関数読み込み
-			ApplyCameraShake(camera, 5, 10);
-
-			Vector2 hitPos;
-			hitPos.x = atk.pos.x + atk.width * 0.5f;
-			hitPos.y = atk.pos.y + atk.height * 0.5f;
-			SpawPrt(hitPos, PRT_BLODD, blood, prtmax);
+			atk.isAlive = false;
 		}
 	}
+
+	return result;
 }
+
 
 //================================================================================================================================================================================================================
 //================================================================================================================================================================================================================
@@ -878,29 +900,62 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 				TileHit(&player.base.pos, &player.base.vec, player.base.width, player.base.height, map, tile);
 
+				// 手動リロード（Rキー）
 				if (keys[DIK_R] && !preKeys[DIK_R]) {
+					if (!reload.isReload && reload.nowBullet < rangeMax) {
+						reload.isReload = true;
+						reload.reload_time = 90;
+					}
+				}
+
+				// 自動リロード
+				if (reload.nowBullet <= 0 && !reload.isReload) {
 					reload.isReload = true;
 					reload.reload_time = 90;
 				}
 
+				// リロード更新
 				UpdateReload(reload, rangeMax);
 
-				bool isAttacking = false;
+
+			bool isAttacking = false;
 				if (keys[DIK_E] && !preKeys[DIK_E]) {
 					attack_type = !attack_type;
 				}
 
-				if (attack_type == false) {
+				if (attack_type == false) { // 弾発射
 					isAttacking = Novice::IsPressMouse(0);
-					AttackSystem_UpdateAll(player.base, boss.base, player_range, rangeMax, isAttacking, player.base.shootCooldown, camera, reload);
 
-				} else if (attack_type == true) {
+				
+					if ( !reload.isReload && reload.nowBullet > 0) {
+							HitEvent e = AttackSystem_UpdateAll(player.base, boss.base, player_range, rangeMax, isAttacking, player.base.shootCooldown);
+						// 発射した瞬間だけ弾を1発消費
+						if (player.base.shootCooldown == 5) {
+							reload.nowBullet--;
+						}
+
+						// 命中イベント
+						if (e.hit) {
+							ApplyDamage(boss.base, 10);
+							ApplyCameraShake(camera, 5, 10);
+							SpawPrt(e.hitPos, PRT_BLODD, blood, prtmax);
+						}
+					}
+
+				} else { // 近接
+
 					isAttacking = Novice::IsTriggerMouse(0);
-					AttackSystem_UpdateAll(player.base, boss.base, player_melee, meleeMax, isAttacking, player.base.shootCooldown, camera, reload);
+
+					HitEvent e = AttackSystem_UpdateAll( player.base,boss.base, player_melee, meleeMax, isAttacking, player.base.shootCooldown );
+
+					if (e.hit) {
+						ApplyDamage(boss.base, player.base.damage);
+						ApplyCameraShake(camera, 5, 10);
+						SpawPrt(e.hitPos, PRT_BLODD, blood, prtmax);
+					}
 				}
-
 				Particle_UpdateAll(blood, prtmax);
-
+			
 				// playerとボースの当たり判定
 				if (!player.base.isInvincible) {
 					if (isHit(player.base, boss.base)) {
@@ -912,6 +967,27 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			}
 
 			//////////////////////
+			//bosｓの攻撃
+			/////
+			if (boss.base.shootCooldown > 0) {
+				boss.base.shootCooldown--;
+			}
+				
+			bool bossAttack = false;
+			bossAttack = true;
+
+			if (bossAttack && boss.base.shootCooldown <= 0) {
+
+				HitEvent h = AttackSystem_UpdateAll(boss.base, player.base,boss_range, boss_rangeMax, bossAttack, boss.base.shootCooldown);
+
+				boss.base.shootCooldown = 30;
+
+				if (h.hit) {
+					ApplyDamage(player.base, boss.base.damage);
+					
+				}
+			}
+
 
 			break;
 		}
