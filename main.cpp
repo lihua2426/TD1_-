@@ -191,9 +191,7 @@ Attack Attack_Melee(Vector2 pos, Vector2 dir) {
 	m.isAlive = false;
 	m.hasHit = false;
 
-	m.pos.x += dir.x * m.width;
-	m.pos.y += dir.y * m.height;
-
+	
 	return m;
 }
 
@@ -570,44 +568,45 @@ bool CheckHit(const Attack& atk, const Character& target) {
 }
 
 // 全ての攻撃の更新関数
-// 全ての攻撃の更新関数（副作用なし・純粋処理）
-HitEvent AttackSystem_UpdateAll(Character& attacker, Character& target, Attack attackArray[], int attackMax, bool isAttacking, int& shootCooldown) {
+void Attack_Fire(Character& attacker, Attack attackArray[], int attackMax, bool isAttacking, int& shootCooldown) {
+	if (!isAttacking)
+		return;
+
+	// 近接
+	if (attackArray[0].type == MELEE) {
+		SpawnMelee(attacker, attackArray, attackMax);
+		return;
+	}
+
+	// 遠距離
+	if (attackArray[0].type == RANGE) {
+		if (shootCooldown <= 0) {
+			SpawnRange(attacker, attackArray, attackMax, shootCooldown);
+		}
+	}
+}
+
+
+HitEvent Attack_Update(Character& attacker, Character& target, Attack attackArray[], int attackMax) {
 	HitEvent result{};
 	result.hit = false;
 
-	// 生成攻撃（近接／遠距離）
-	if (isAttacking) {
-
-		if (attackArray[0].type == MELEE) {
-
-			// 共有近接攻撃
-			SpawnMelee(attacker, attackArray, attackMax);
-
-		} else {
-
-			// 共有弾攻撃
-			if (shootCooldown <= 0) {
-				SpawnRange(attacker, attackArray, attackMax, shootCooldown);
-			}
-		}
-	}
-
-	// 更新処理
 	for (int i = 0; i < attackMax; i++) {
 
 		Attack& atk = attackArray[i];
 		if (!atk.isAlive)
 			continue;
 
-		// 近接位置更新
+		// 近接攻撃Pos
 		if (atk.type == MELEE) {
 			atk.pos.x = attacker.pos.x + attacker.dir.x * attacker.width;
 			atk.pos.y = attacker.pos.y + attacker.dir.y * attacker.height;
 		}
 
-		UpdateAttack(atk); // 存在時間・移動の関数
+		// 存在時間、
+		UpdateAttack(atk);
 
-		// タイルと弾の当たり判定関数
+		//弾とタイル
 		if (atk.type == RANGE) {
 			if (BulletTileHit(atk, map, tile)) {
 				atk.isAlive = false;
@@ -615,10 +614,10 @@ HitEvent AttackSystem_UpdateAll(Character& attacker, Character& target, Attack a
 			}
 		}
 
-		// 攻撃命中（
-		if (CheckHit( atk, target)) {
-
+		// 当たり判定
+		if (CheckHit(atk, target)) {
 			result.hit = true;
+
 			result.hitPos = {atk.pos.x + atk.width * 0.5f, atk.pos.y + atk.height * 0.5f};
 
 			atk.isAlive = false;
@@ -918,19 +917,21 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				UpdateReload(reload, rangeMax);
 
 
-			bool isAttacking = false;
+			
 				if (keys[DIK_E] && !preKeys[DIK_E]) {
 					attack_type = !attack_type;
 				}
 
 				if (attack_type == false) { // 弾発射
-					isAttacking = Novice::IsPressMouse(0);
+					bool wantFire = Novice::IsPressMouse(0);
+					HitEvent e = Attack_Update(player.base, boss.base, player_range, rangeMax);
 
 				
 					if ( !reload.isReload && reload.nowBullet > 0) {
-							HitEvent e = AttackSystem_UpdateAll(player.base, boss.base, player_range, rangeMax, isAttacking, player.base.shootCooldown);
+						Attack_Fire(player.base, player_range, rangeMax, wantFire, player.base.shootCooldown);
+
 						// 発射した瞬間だけ弾を1発消費
-						if (player.base.shootCooldown == 5) {
+						if (wantFire && player.base.shootCooldown ==5) {
 							reload.nowBullet--;
 						}
 
@@ -944,9 +945,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 				} else { // 近接
 
-					isAttacking = Novice::IsTriggerMouse(0);
+					bool wantFire = Novice::IsTriggerMouse(0);
 
-					HitEvent e = AttackSystem_UpdateAll( player.base,boss.base, player_melee, meleeMax, isAttacking, player.base.shootCooldown );
+					HitEvent e = Attack_Update(player.base, boss.base, player_melee, meleeMax);
+					Attack_Fire(player.base, player_melee, meleeMax, wantFire, player.base.shootCooldown);
 
 					if (e.hit) {
 						ApplyDamage(boss.base, player.base.damage);
@@ -978,7 +980,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			if (bossAttack && boss.base.shootCooldown <= 0) {
 
-				HitEvent h = AttackSystem_UpdateAll(boss.base, player.base,boss_range, boss_rangeMax, bossAttack, boss.base.shootCooldown);
+				HitEvent h = Attack_Update(boss.base, player.base,boss_range, boss_rangeMax);
 
 				boss.base.shootCooldown = 30;
 
@@ -1132,6 +1134,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				Novice::ScreenPrintf(0, Y += H, "ReloadTime: %f", reload.reload_time);
 				Novice::ScreenPrintf(0, Y += H, "isReload: %d", reload.isReload);
 				Novice::ScreenPrintf(0, Y += H, "boss_range: %d", boss_range->isAlive);
+				Novice::ScreenPrintf(0, Y += H, "playerDir_X: %f",player.base.dir.x);
+				Novice::ScreenPrintf(0, Y += H, "playerDir_Y: %f", player.base.dir.y);
 			}
 
 			Novice::DrawLine((int)px, (int)py, (int)mouse.pos.x, (int)mouse.pos.y, RED);
