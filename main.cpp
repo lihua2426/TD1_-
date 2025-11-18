@@ -1,8 +1,8 @@
 #include <Novice.h>
 #include <math.h>
 const char kWindowTitle[] = "GC1B_01_カ_アン";
-const int kWindowWitch = 1280;
-const int kWindowHeight = 720;
+const int kWindowWitch = 32 * 50;
+const int kWindowHeight = 32 * 25;
 bool debug = true;
 //
 typedef enum {
@@ -135,8 +135,8 @@ Player InitPlayer(float x, float y) {
 	p.base.damage = 10;
 	p.base.invincible_time = 60;
 	p.base.shootCooldown = 0;
-	p.base.width = 50.0f;
-	p.base.height = 50.0f;
+	p.base.width = 32.0f;
+	p.base.height = 32.0f;
 	p.base.speed = 0;
 	p.base.dash_speed = 10;
 	p.base.dash_time = 0;
@@ -243,6 +243,99 @@ Particle InitPrt(Vector2 pos, ParticleType type) {
 //===============================================================================
 // 関数
 //================================================================================
+// マップ
+int tile = 32;
+int map[25][50] = {
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
+    {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+};
+
+void TileHit(Vector2* pos, Vector2* vel, float width, float height, int Map[25][50], int tile_sezi) {
+
+	{
+		int L = (int)pos->x;
+		int R = (int)pos->x + (int)width;
+		int T = (int)pos->y;
+		int B = (int)pos->y + (int)height;
+
+		int txL = L / tile_sezi;
+		int txR = (R - 1) / tile_sezi;
+		int tyT = T / tile_sezi;
+		int tyB = (B - 1) / tile_sezi;
+
+		if (txL < 1) {
+
+			txL = 1;
+		}
+
+		if (txR > 48) {
+			txR = 48;
+		}
+
+		if (vel->y < 0 && (Map[tyT][txL] == 1 || Map[tyT][txR] == 1)) {
+			pos->y = (tyT + 1) * (float)tile_sezi;
+		}
+		if (vel->y > 0 && (Map[tyB][txL] == 1 || Map[tyB][txR] == 1)) {
+			pos->y = tyB * tile_sezi - height;
+		}
+	}
+
+	{
+		int L = (int)pos->x;
+		int R = (int)pos->x + (int)width;
+		int T = (int)pos->y;
+		int B = (int)pos->y + (int)height;
+
+		int txL = L / tile_sezi;
+		int txR = (R - 1) / tile_sezi;
+		int tyT = T / tile_sezi;
+		int tyB = (B - 1) / tile_sezi;
+
+		if (vel->x < 0 && (Map[tyT][txL] == 1 || Map[tyB][txL] == 1)) {
+			pos->x = (txL + 1) * (float)tile_sezi;
+		}
+		if (vel->x > 0 && (Map[tyT][txR] == 1 || Map[tyB][txR] == 1)) {
+			pos->x = txR * tile_sezi - width;
+		}
+	}
+}
+
+bool BulletTileHit(Attack att, int Map[25][50], int tile_sezi) {
+	bool isHit = false;
+	float px = att.pos.x + att.width * 0.5f;
+	float py = att.pos.y + att.height * 0.5f;
+
+	int tx = (int)px / tile_sezi;
+	int ty = (int)py / tile_sezi;
+
+	if (Map[ty][tx] == 1) {
+		isHit = true;
+	}
+	return isHit;
+}
 
 //============================================================================================
 // 粒子システムについて関数
@@ -354,14 +447,14 @@ void Move(Vector2& pos, Vector2& vec, float width, float height, float speed) {
 	if (pos.x < 0) {
 		pos.x = 0;
 	}
-	if (pos.x + width > 1280) {
-		pos.x = 1280 - width;
+	if (pos.x + width > kWindowWitch) {
+		pos.x = kWindowWitch - width;
 	}
 	if (pos.y < 0) {
 		pos.y = 0;
 	}
-	if (pos.y + height > 720) {
-		pos.y = 720 - height;
+	if (pos.y + height > kWindowHeight) {
+		pos.y = kWindowHeight - height;
 	}
 }
 
@@ -438,7 +531,7 @@ void UpdateAttack(Attack& atk) {
 	atk.pos.y += atk.vec.y * atk.speed;
 
 	// 画面外出てない
-	if (atk.pos.x < 0 || atk.pos.x > 1280 || atk.pos.y < 0 || atk.pos.y > 720) {
+	if (atk.pos.x < 0 || atk.pos.x > kWindowWitch || atk.pos.y < 0 || atk.pos.y > kWindowHeight) {
 		atk.isAlive = false;
 	}
 }
@@ -489,9 +582,17 @@ void AttackSystem_UpdateAll(Character& attacker, Character& target, Attack attac
 		// 更新存在時間関数読み込み
 		UpdateAttack(atk);
 
+		if (atk.type == RANGE) {
+			if (BulletTileHit(atk, map, tile)) {
+				atk.isAlive = false;
+				continue;
+			}
+		}
+
 		// もし、攻撃判定が成功したら，
 		if (CheckHit(atk, target)) {
 			if (atk.type == RANGE) {
+
 				atk.isAlive = false;
 			}
 
@@ -611,10 +712,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	const int meleeMax = 1;
 	const int rangeMax = 32;
+	// const int boss_meleeMax = 1;
+	const int boss_rangeMax = 32;
 	Attack player_melee[meleeMax]{};
 	Attack player_range[rangeMax]{};
 	// Attack boss_melee[meleeMax]{};
-	// Attack boss_range[rangeMax]{};
+	Attack boss_range[boss_rangeMax]{};
 
 	// リロード
 	Reload reload{
@@ -648,7 +751,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	//////////////////////////////////////////////////
 
 	// ライブラリの初期化
-	Novice::Initialize(kWindowTitle, 1280, 720);
+	Novice::Initialize(kWindowTitle, kWindowWitch, kWindowHeight);
 
 	// キー入力結果を受け取る箱
 	char keys[256] = {0};
@@ -773,6 +876,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				Dash(player.base);
 				Move(player.base.pos, player.base.vec, player.base.width, player.base.height, player.base.speed);
 
+				TileHit(&player.base.pos, &player.base.vec, player.base.width, player.base.height, map, tile);
+
 				if (keys[DIK_R] && !preKeys[DIK_R]) {
 					reload.isReload = true;
 					reload.reload_time = 90;
@@ -784,11 +889,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				if (keys[DIK_E] && !preKeys[DIK_E]) {
 					attack_type = !attack_type;
 				}
+
 				if (attack_type == false) {
-					// if (!reload.isReload) {
 					isAttacking = Novice::IsPressMouse(0);
 					AttackSystem_UpdateAll(player.base, boss.base, player_range, rangeMax, isAttacking, player.base.shootCooldown, camera, reload);
-					//}
 
 				} else if (attack_type == true) {
 					isAttacking = Novice::IsTriggerMouse(0);
@@ -806,6 +910,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 					}
 				}
 			}
+
+			//////////////////////
 
 			break;
 		}
@@ -883,6 +989,14 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			// 背景
 			Novice::DrawBox(0 - (int)camera.offset.x, 0 - (int)camera.offset.y, kWindowWitch, kWindowHeight, 0.0f, BLACK, kFillModeSolid);
 
+			for (int y = 0; y < 25; y++) {
+				for (int x = 0; x < 50; x++) {
+					if (map[y][x] == 1) {
+						Novice::DrawBox((int)tile * x, (int)tile * y, tile, tile, 0.0f, WHITE, kFillModeWireFrame);
+					}
+				}
+			}
+
 			// boss
 			Novice::DrawBox((int)boss.base.pos.x - (int)camera.offset.x, (int)boss.base.pos.y - (int)camera.offset.y, (int)boss.base.width, (int)boss.base.height, 0.0f, WHITE, kFillModeWireFrame);
 			// player
@@ -899,6 +1013,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				if (player_range[i].isAlive) {
 
 					Novice::DrawBox((int)player_range[i].pos.x, (int)player_range[i].pos.y, (int)player_range[i].width, (int)player_range[i].height, 0.0f, WHITE, kFillModeSolid);
+				}
+			}
+
+			for (int i = 0; i < boss_rangeMax; i++) {
+				if (boss_range[i].isAlive) {
+
+					Novice::DrawBox((int)boss_range[i].pos.x, (int)boss_range[i].pos.y, (int)boss_range[i].width, (int)boss_range[i].height, 0.0f, WHITE, kFillModeSolid);
 				}
 			}
 
@@ -934,6 +1055,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				Novice::ScreenPrintf(0, Y += H, "ReloadMax: %d", reload.bulletMax);
 				Novice::ScreenPrintf(0, Y += H, "ReloadTime: %f", reload.reload_time);
 				Novice::ScreenPrintf(0, Y += H, "isReload: %d", reload.isReload);
+				Novice::ScreenPrintf(0, Y += H, "boss_range: %d", boss_range->isAlive);
 			}
 
 			Novice::DrawLine((int)px, (int)py, (int)mouse.pos.x, (int)mouse.pos.y, RED);
