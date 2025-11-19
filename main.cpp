@@ -4,6 +4,7 @@ const char kWindowTitle[] = "GC1B_01_カ_アン";
 const int kWindowWitch = 32 * 50;
 const int kWindowHeight = 32 * 28;
 bool debug = true;
+bool fullscreen = false;
 //
 typedef enum {
 	START, // タイトル
@@ -1092,6 +1093,21 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				game_state = START;
 			}
 		}
+		}
+
+
+
+
+
+		if (keys[DIK_F11] && !preKeys[DIK_F11]) {
+			fullscreen = !fullscreen;
+			if (fullscreen) {
+				Novice::SetWindowMode(kFullscreen);
+			} else {
+			
+			Novice::SetWindowMode(kWindowed);
+			}
+		
 		}
 
 		///
