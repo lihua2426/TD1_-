@@ -521,6 +521,10 @@ void UpdateReload(Reload& reload, int rangMax) {
 		reload.nowBullet += canLoad;
 		reload.bulletMax -= canLoad;
 		reload.reload_time = 90;
+		if (reload.bulletMax == 0) {
+			reload.bulletMax = 200;
+			reload.reload_time = 90;
+		}
 		return;
 	}
 }
@@ -732,7 +736,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	};
 
 	const int meleeMax = 1;
-	const int rangeMax = 32;
+	const int rangeMax = 40;
 	// const int boss_meleeMax = 1;
 	const int boss_rangeMax = 32;
 	Attack player_melee[meleeMax]{};
