@@ -23,6 +23,10 @@ enum AttackType {
 };
 bool attack_type = false;
 
+enum BOSS_SKILL {
+
+};
+
 enum ParticleType {
 	PRT_BLODD,
 	PRT_DASH,
@@ -74,6 +78,13 @@ struct Character {
 	bool isAlive;      // 存在かどうか
 	bool isHit;        // 被弾中かどうか//今まだ使わない
 	bool isInvincible; // 無敵かどうか
+
+
+	//弾管理
+	float bulletSezi;
+	int bulletTime;
+	float bulletSpeed;
+	int bulletdamege;
 };
 
 // player
@@ -152,6 +163,11 @@ Player InitPlayer(float x, float y) {
 	p.base.isAlive = true;
 	p.base.isHit = false;
 	p.base.isInvincible = false;
+	p.base.bulletSpeed = 20.0f;
+	p.base.bulletdamege = 15;
+	p.base.bulletTime = 90;
+	p.base.bulletSezi = 16.0f;
+
 	return p;
 }
 
@@ -175,10 +191,14 @@ Boss InitBoss(float x, float y) {
 	b.base.isAlive = true;
 	b.base.isHit = false;
 	b.base.isInvincible = false;
+	b.base.bulletSpeed = 20.0f;
+	b.base.bulletdamege = 10;
+	b.base.bulletTime = 90;
+	b.base.bulletSezi = 25.0f;
 	return b;
 }
 
-// 共有近接攻撃
+// Player近接攻撃
 Attack Attack_Melee(Vector2 pos, Vector2 dir) {
 	Attack m{};
 	m.pos = pos;
@@ -192,34 +212,30 @@ Attack Attack_Melee(Vector2 pos, Vector2 dir) {
 	m.speed = 0.0f;
 	m.isAlive = false;
 	m.hasHit = false;
-
 	return m;
 }
 
-// 共有弾攻撃
-Attack Attack_Range(Vector2 pos, Vector2 dir) {
+// Player弾攻撃
+Attack Attack_Range(Character attacker) {
 	Attack r{};
 
 	// 斜め移動の処理//正規化
-	float length = sqrtf(dir.x * dir.x + dir.y * dir.y);
+	float length = sqrtf(attacker.dir.x * attacker.dir.x + attacker.dir.y * attacker.dir.y);
 	if (length > 0) {
-		dir.x /= length;
-		dir.y /= length;
+		attacker.dir.x /= length;
+		attacker.dir.y /= length;
 	}
 
-	r.pos = pos;
-	r.vec = dir;
+	r.pos = {attacker.pos.x + attacker.width / 2, attacker.pos.y + attacker.height / 2};
+	r.vec = attacker.dir;
 	r.type = RANGE;
 	r.damage = 10;
-	r.lifeTime = 90;
-	r.width = 25;
-	r.height = 25;
-	r.speed = 20.0f;
+	r.lifeTime = attacker.bulletTime;
+	r.width = attacker.bulletSezi;
+	r.height = attacker.bulletSezi;
+	r.speed = attacker.bulletSpeed;
 	r.isAlive = false;
 	r.hasHit = false;
-
-	r.pos = {r.pos.x + r.width / 2, r.pos.y + r.height / 2};
-
 	return r;
 }
 
@@ -233,18 +249,8 @@ Particle InitPrt(Vector2 pos, ParticleType type) {
 	p.isAlive = true;
 	p.lifeTime = 0;
 	p.type = type;
-
 	return p;
 }
-
-// リロード関数
-// Reload InitReload(int rangeMax) {
-// Reload r{};
-// r.isReload == false;
-// r.bulletMax = rangeMax;
-// r.reload_time = 0;
-// return r;
-//}
 
 //===============================================================================
 // 関数
@@ -490,7 +496,7 @@ void SpawnRange(Character& attacker, Attack range[], int rangeMax, int& cooldown
 
 	for (int i = 0; i < rangeMax; i++) {
 		if (!range[i].isAlive) {
-			range[i] = Attack_Range(attacker.pos, attacker.dir);
+			range[i] = Attack_Range(attacker);
 			range[i].isAlive = true;
 			cooldown = 5;
 
@@ -718,8 +724,8 @@ void ALL(Player& player, Boss& boss, Camera& camera, Attack melee[], Attack rang
 	boss_rangeMax = 32;
 
 	for (int i = 0; i < boss_meleeMax; i++) {
-		boss_melee[i].pos = player.base.pos;
-		boss_melee[i].vec = player.base.dir;
+		boss_melee[i].pos =boss.base.pos;
+		boss_melee[i].vec = boss.base.dir;
 		boss_melee[i].type = MELEE;
 		boss_melee[i].damage = 10;
 		boss_melee[i].lifeTime = 15;
@@ -730,18 +736,18 @@ void ALL(Player& player, Boss& boss, Camera& camera, Attack melee[], Attack rang
 		boss_melee[i].isAlive = false;
 		boss_melee[i].hasHit = false;
 
-		boss_melee[i].pos.x += player.base.dir.x * melee[i].width;
-		boss_melee[i].pos.y += player.base.dir.y * melee[i].height;
+		boss_melee[i].pos.x += boss.base.dir.x * boss_melee[i].width;
+		boss_melee[i].pos.y += boss.base.dir.y * boss_melee[i].height;
 	}
 
 	for (int i = 0; i < boss_rangeMax; i++) {
-		boss_range[i].pos = player.base.pos;
-		boss_range[i].vec = player.base.dir;
+		boss_range[i].pos = boss.base.pos;
+		boss_range[i].vec = boss.base.dir;
 		boss_range[i].type = RANGE;
 		boss_range[i].damage = 10;
 		boss_range[i].lifeTime = 90;
-		boss_range[i].height = 25;
-		boss_range[i].speed = 20.0f;
+		boss_range[i].height = 32;
+		boss_range[i].speed = 32.0f;
 		boss_range[i].isAlive = false;
 		boss_range[i].hasHit = false;
 	}
@@ -968,7 +974,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 						// 命中イベント
 						if (e.hit) {
-							ApplyDamage(boss.base, 10);
+							ApplyDamage(boss.base, player.base.bulletdamege);
 							ApplyCameraShake(camera, 5, 10);
 							SpawPrt(e.hitPos, PRT_BLODD, blood, prtmax);
 						}
@@ -1004,15 +1010,15 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			float PX = player.base.pos.x + player.base.width / 2;
 			float PY = player.base.pos.y + player.base.height / 2;
 
-			float BX = boss.base.pos.x + boss.base.width / 2;
+		float BX = boss.base.pos.x + boss.base.width / 2;
 			float BY = boss.base.pos.y + boss.base.height / 2;
 
 			boss.base.dir.x = PX - BX;
-			boss.base.dir.y = PY - BY;
+		boss.base.dir.y = PY - BY;
 
 			float LEN = sqrtf(boss.base.dir.x * boss.base.dir.x + boss.base.dir.y * boss.base.dir.y);
 			if (LEN > 0) {
-				boss.base.dir.x /= LEN;
+			boss.base.dir.x /= LEN;
 				boss.base.dir.y /= LEN;
 			}
 
@@ -1020,18 +1026,20 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				boss.base.shootCooldown--;
 			}
 
+
 			HitEvent h = Attack_Update(boss.base, player.base, boss_range, boss_rangeMax);
 
 			bool wantFire = true;
 			if (wantFire && boss.base.shootCooldown <= 0) {
 				Attack_Fire(boss.base, boss_range, boss_rangeMax, wantFire, boss.base.shootCooldown);
-				boss.base.shootCooldown = 90;
+				boss.base.shootCooldown = 20;
 
-				if (h.hit) {
-					ApplyDamage(player.base, boss.base.damage);
-					ApplyCameraShake(camera, 5, 10);
-				}
+				
 			}
+			if (h.hit) {
+				ApplyDamage(player.base, boss.base.damage);
+			}
+
 
 			break;
 		}
