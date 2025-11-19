@@ -859,7 +859,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				game_state = FIGHT;
 				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax, boss_melee, boss_range, boss_rangeMax, boss_meleeMax);
 			}
-
 			break;
 		}
 
