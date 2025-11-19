@@ -629,7 +629,9 @@ HitEvent Attack_Update(Character& attacker, Character& target, Attack attackArra
 
 			result.hitPos = {atk.pos.x + atk.width * 0.5f, atk.pos.y + atk.height * 0.5f};
 
-			atk.isAlive = false;
+			if (atk.type == RANGE) {
+				atk.isAlive = false;
+			}
 		}
 	}
 
@@ -783,10 +785,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	// リロード
 	Reload reload{
 	    .reload_time = 90,
-
 	    .nowBullet = rangeMax,
 	    .bulletMax = 200,
-
 	    .isReload = false,
 	};
 
@@ -1120,7 +1120,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			for (int y = 0; y < 28; y++) {
 				for (int x = 0; x < 50; x++) {
 					if (map[y][x] == 1) {
-						Novice::DrawBox((int)tile * x, (int)tile * y, tile, tile, 0.0f, WHITE, kFillModeWireFrame);
+						Novice::DrawBox((int)tile * x - (int)camera.offset.x, (int)tile * y - (int)camera.offset.y, tile, tile, 0.0f, WHITE, kFillModeWireFrame);
 					}
 				}
 			}
