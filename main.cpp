@@ -1,11 +1,19 @@
 #include <Novice.h>
 #include <math.h>
 const char kWindowTitle[] = "GC1B_01_カ_アン";
-const int kWindowWitch = 32 * 50;
-const int kWindowHeight = 32 * 28;
+
+#pragma region
+#pragma endregion
+
+const int kWindowWitch = 1280;
+const int kWindowHeight = 720;
 bool debug = true;
 bool fullscreen = false;
-//
+int deadX = 250;
+int deadY = 150;
+int deadW = 1280 - 500;
+int deadH = 720 - 300;
+
 typedef enum {
 	START, // タイトル
 	FIGHT, // 戦い
@@ -15,6 +23,11 @@ typedef enum {
 } GAME_STATE;
 GAME_STATE game_state = START;
 
+enum BOSS_SKILL {
+	SHOOT,
+};
+BOSS_SKILL boss_shill = SHOOT;
+
 // 攻撃の種類
 enum AttackType {
 
@@ -23,10 +36,6 @@ enum AttackType {
 
 };
 bool attack_type = false;
-
-enum BOSS_SKILL {
-
-};
 
 enum ParticleType {
 	PRT_BLODD,
@@ -47,7 +56,8 @@ struct Mouse {
 
 // カメラ宣言
 struct Camera {
-	Vector2 offset;
+	Vector2 worldOffset;
+	Vector2 shakeOffset;
 	int shankeTime;
 	float shakeProw;
 };
@@ -80,8 +90,7 @@ struct Character {
 	bool isHit;        // 被弾中かどうか//今まだ使わない
 	bool isInvincible; // 無敵かどうか
 
-
-	//弾管理
+	// 弾管理
 	float bulletSezi;
 	int bulletTime;
 	float bulletSpeed;
@@ -142,7 +151,7 @@ struct Reload {
 
 //=================================================================
 // 初期化
-//===============================================================--
+//===============================================================
 
 // プレイヤ
 Player InitPlayer(float x, float y) {
@@ -154,17 +163,17 @@ Player InitPlayer(float x, float y) {
 	p.base.damage = 10;
 	p.base.invincible_time = 60;
 	p.base.shootCooldown = 0;
-	p.base.width = 48.0f;
-	p.base.height = 48.0f;
+	p.base.width = 40.0f;
+	p.base.height = 40.0f;
 	p.base.speed = 0;
-	p.base.dash_speed = 10;
+	p.base.dash_speed = 15;
 	p.base.dash_time = 0;
-	p.base.normal_speed = 5;
+	p.base.normal_speed = 8;
 	p.base.isDash = false;
 	p.base.isAlive = true;
 	p.base.isHit = false;
 	p.base.isInvincible = false;
-	p.base.bulletSpeed = 20.0f;
+	p.base.bulletSpeed = 15.0f;
 	p.base.bulletdamege = 15;
 	p.base.bulletTime = 90;
 	p.base.bulletSezi = 16.0f;
@@ -192,7 +201,7 @@ Boss InitBoss(float x, float y) {
 	b.base.isAlive = true;
 	b.base.isHit = false;
 	b.base.isInvincible = false;
-	b.base.bulletSpeed = 20.0f;
+	b.base.bulletSpeed = 7.0f;
 	b.base.bulletdamege = 10;
 	b.base.bulletTime = 90;
 	b.base.bulletSezi = 25.0f;
@@ -258,13 +267,10 @@ Particle InitPrt(Vector2 pos, ParticleType type) {
 //================================================================================
 // マップ
 int tile = 32;
-int map[28][50] = {
+int map[25][50] = {
     {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
     {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
     {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
     {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
     {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
     {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
@@ -457,17 +463,21 @@ void Move(Vector2& pos, Vector2& vec, float width, float height, float speed) {
 	pos.x += vec.x * speed;
 	pos.y += vec.y * speed;
 
+	float w = 50 * (float)tile;
+
+	float h = 25 * (float)tile;
+
 	if (pos.x < 0) {
 		pos.x = 0;
 	}
-	if (pos.x + width > kWindowWitch) {
-		pos.x = kWindowWitch - width;
+	if (pos.x + width > w) {
+		pos.x = w - width;
 	}
 	if (pos.y < 0) {
 		pos.y = 0;
 	}
-	if (pos.y + height > kWindowHeight) {
-		pos.y = kWindowHeight - height;
+	if (pos.y + height > h) {
+		pos.y = h - height;
 	}
 }
 
@@ -552,9 +562,9 @@ void UpdateAttackTime(Attack& atk) {
 	atk.pos.y += atk.vec.y * atk.speed;
 
 	// 画面外出てない
-	if (atk.pos.x < 0 || atk.pos.x > kWindowWitch || atk.pos.y < 0 || atk.pos.y > kWindowHeight) {
-		atk.isAlive = false;
-	}
+	// if (atk.pos.x < 0 || atk.pos.x > kWindowWitch || atk.pos.y < 0 || atk.pos.y > kWindowHeight) {
+	//	atk.isAlive = false;
+	//}
 }
 
 // 共有無敵関数
@@ -647,13 +657,50 @@ HitEvent Attack_Update(Character& attacker, Character& target, Attack attackArra
 void Shak(Camera& camera) {
 	if (camera.shankeTime > 0) {
 		camera.shankeTime--;
-		camera.offset.x = (float)(rand() % 3 - 1) * camera.shakeProw;
-		camera.offset.y = (float)(rand() % 3 - 1) * camera.shakeProw;
+		camera.shakeOffset.x = (float)(rand() % 3 - 1) * camera.shakeProw;
+		camera.shakeOffset.y = (float)(rand() % 3 - 1) * camera.shakeProw;
 	} else {
-		camera.offset.x = 0.0f;
-		camera.offset.y = 0.0f;
+		camera.shakeOffset.x = 0.0f;
+		camera.shakeOffset.y = 0.0f;
 	}
 }
+
+void UpdateCamera(Camera& camera, Player& player) {
+
+	 float px = player.base.pos.x + player.base.width * 0.5f;
+	float py = player.base.pos.y + player.base.height * 0.5f;
+
+	float screenX = px - camera.worldOffset.x;
+	float screenY = py - camera.worldOffset.y;
+
+	// int deadX = 200;
+	// int deadY = 150;
+	// int deadW = 1280 - 400;
+	// int deadH = 720 - 300;
+
+	// 左
+	if (screenX < deadX) {
+		camera.worldOffset.x = px - deadX;
+	}
+
+	// 右
+	if (screenX > deadX + deadW) {
+		camera.worldOffset.x = px - (deadX + deadW);
+	}
+	// 上
+	if (screenY < deadY) {
+		camera.worldOffset.y = py - deadY;
+	}
+
+	// 下
+	if (screenY > deadY + deadH) {
+		camera.worldOffset.y = py - (deadY + deadH);
+	}
+}
+
+	
+
+	
 
 // マオスとUI　BOXの当たり判定
 void UpdateButton(UI& box) {
@@ -671,23 +718,57 @@ void DrawButton(const UI& box) {
 	Novice::ScreenPrintf(box.x + box.w / 2 - 30, box.y + box.h / 2 - 5, box.label);
 }
 
+//=====================================================================================================================================================================================================================
+// bossの攻撃関数
+// ====================================================================================================================================================================================================================
+
+// スキル１
+void BossScatterShoot(Character& boss, Attack attackArray[], int attackMax, int& cooldown, float spreadAngleDeg, int bulletCount) {
+	if (cooldown > 0)
+		return;
+
+	float angleCenter = atan2f(boss.dir.y, boss.dir.x);
+	float halfSpread = (spreadAngleDeg * 0.5f) * (3.14159f / 180.0f);
+	float angleStep = (spreadAngleDeg / (float)(bulletCount - 1)) * (3.14159f / 180.0f);
+
+	for (int i = 0; i < bulletCount; i++) {
+
+		float angle = angleCenter - halfSpread + angleStep * i;
+
+		for (int j = 0; j < attackMax; j++) {
+			if (!attackArray[j].isAlive) {
+
+				attackArray[j] = Attack_Range(boss);
+
+				attackArray[j].vec.x = cosf(angle);
+				attackArray[j].vec.y = sinf(angle);
+
+				attackArray[j].isAlive = true;
+
+				break;
+			}
+		}
+	}
+
+	cooldown = 40;
+}
+
+//=====================================================================================================================================================================================================================
+//
+// ====================================================================================================================================================================================================================
+
 // もう一回遊び、数値をリセットする
-void ALL(Player& player, Boss& boss, Camera& camera, Attack melee[], Attack range[], int meleeMax, int rangeMax, Attack boss_melee[], Attack boss_range[], int boss_rangeMax, int boss_meleeMax) {
+void ALL(Player& player, Boss& boss, Camera& camera, Attack melee[], Attack range[], int meleeMax, int rangeMax) {
 	attack_type = false;
 
 	player = InitPlayer(640.0f, 600.0f);
 	//
 	boss = InitBoss(640.0f, 320.0f);
 
-	//
-	// mouse = {
-	//  .pos = {0.0f, 0.0f},
-	//  .dir = {0.0f, 0.0f},
-	// .isMouse = false,
-	//};
-	//
 	camera = {
-	    .offset = {0.0f, 0.0f},
+	    .worldOffset = {0.0f, 0.0f},
+	    .shakeOffset = {0.0f, 0.0f},
+
 	    .shankeTime = 0,
 	    .shakeProw = 0.0f,
 	};
@@ -722,38 +803,6 @@ void ALL(Player& player, Boss& boss, Camera& camera, Attack melee[], Attack rang
 		range[i].isAlive = false;
 		range[i].hasHit = false;
 	}
-
-	boss_meleeMax = 1;
-	boss_rangeMax = 32;
-
-	for (int i = 0; i < boss_meleeMax; i++) {
-		boss_melee[i].pos =boss.base.pos;
-		boss_melee[i].vec = boss.base.dir;
-		boss_melee[i].type = MELEE;
-		boss_melee[i].damage = 10;
-		boss_melee[i].lifeTime = 15;
-		boss_melee[i].waitTime = 15;
-		boss_melee[i].width = 50;
-		boss_melee[i].height = 50;
-		boss_melee[i].speed = 0.0f;
-		boss_melee[i].isAlive = false;
-		boss_melee[i].hasHit = false;
-
-		boss_melee[i].pos.x += boss.base.dir.x * boss_melee[i].width;
-		boss_melee[i].pos.y += boss.base.dir.y * boss_melee[i].height;
-	}
-
-	for (int i = 0; i < boss_rangeMax; i++) {
-		boss_range[i].pos = boss.base.pos;
-		boss_range[i].vec = boss.base.dir;
-		boss_range[i].type = RANGE;
-		boss_range[i].damage = 10;
-		boss_range[i].lifeTime = 90;
-		boss_range[i].height = 32;
-		boss_range[i].speed = 32.0f;
-		boss_range[i].isAlive = false;
-		boss_range[i].hasHit = false;
-	}
 }
 
 // Windowsアプリでのエントリーポイント(main関数)
@@ -769,18 +818,19 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	};
 
 	Camera camera{
-	    .offset = {0.0f, 0.0f},
+	    .worldOffset = {0.0f, 0.0f},
+	    .shakeOffset = {0.0f, 0.0f},
 	    .shankeTime = 0,
 	    .shakeProw = 0.0f,
 	};
 
 	const int meleeMax = 1;
 	const int rangeMax = 40;
-	const int boss_meleeMax = 1;
+	// const int boss_meleeMax = 1;
 	const int boss_rangeMax = 32;
 	Attack player_melee[meleeMax]{};
 	Attack player_range[rangeMax]{};
-	Attack boss_melee[meleeMax]{};
+	// Attack boss_melee[meleeMax]{};
 	Attack boss_range[boss_rangeMax]{};
 
 	// リロード
@@ -839,11 +889,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		mouse.pos.x = (float)mouseX;
 		mouse.pos.y = (float)mouseY;
 
-		float px = player.base.pos.x + player.base.width / 2;
-		float py = player.base.pos.y + player.base.height / 2;
+		float px = player.base.pos.x + player.base.width / 2.0f;
+		float py = player.base.pos.y + player.base.height / 2.0f;
 
-		player.base.dir.x = mouse.pos.x - px;
-		player.base.dir.y = mouse.pos.y - py;
+		float camX = camera.worldOffset.x + camera.shakeOffset.x;
+		float camY = camera.worldOffset.y + camera.shakeOffset.y;
+
+		Vector2 mouseWorld{mouse.pos.x + camX, mouse.pos.y + camY};
+
+		player.base.dir.x = mouseWorld.x - px;
+		player.base.dir.y = mouseWorld.y - py;
 
 		float len = sqrtf(player.base.dir.x * player.base.dir.x + player.base.dir.y * player.base.dir.y);
 		if (len > 0) {
@@ -854,13 +909,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		switch (game_state) {
 			// タイトル
 		case START: {
-			ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax, boss_melee, boss_range, boss_rangeMax, boss_meleeMax);
+			ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 
 			UpdateButton(startBtn);
 
 			if (startBtn.isClicked) {
 				game_state = FIGHT;
-				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax, boss_melee, boss_range, boss_rangeMax, boss_meleeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 			}
 
 			break;
@@ -869,6 +924,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			// 戦い
 		case FIGHT: {
 
+			UpdateCamera(camera, player);
 			UpdateButton(stopBtn);
 			if (stopBtn.isClicked) {
 				game_state = STOP;
@@ -885,7 +941,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			if (camera.shankeTime > 0) {
 				Shak(camera);
 			} else {
-				camera.offset = {0.0f, 0.0f};
+				camera.shakeOffset = {0.0f, 0.0f};
 			}
 
 			if (player.base.shootCooldown > 0) {
@@ -1004,22 +1060,22 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				}
 			}
 
-			//////////////////////
-			// bosｓの攻撃
-			/////
+			//==============================================================================================================================================================================================================================
+			// bossの攻撃
+			//===============================================================================================================================================================================================================================
 
 			float PX = player.base.pos.x + player.base.width / 2;
 			float PY = player.base.pos.y + player.base.height / 2;
 
-		float BX = boss.base.pos.x + boss.base.width / 2;
+			float BX = boss.base.pos.x + boss.base.width / 2;
 			float BY = boss.base.pos.y + boss.base.height / 2;
 
 			boss.base.dir.x = PX - BX;
-		boss.base.dir.y = PY - BY;
+			boss.base.dir.y = PY - BY;
 
 			float LEN = sqrtf(boss.base.dir.x * boss.base.dir.x + boss.base.dir.y * boss.base.dir.y);
 			if (LEN > 0) {
-			boss.base.dir.x /= LEN;
+				boss.base.dir.x /= LEN;
 				boss.base.dir.y /= LEN;
 			}
 
@@ -1027,20 +1083,15 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				boss.base.shootCooldown--;
 			}
 
-
 			HitEvent h = Attack_Update(boss.base, player.base, boss_range, boss_rangeMax);
 
-			bool wantFire = true;
-			if (wantFire && boss.base.shootCooldown <= 0) {
-				Attack_Fire(boss.base, boss_range, boss_rangeMax, wantFire, boss.base.shootCooldown);
-				boss.base.shootCooldown = 20;
-
-				
+			// bool wantFire = true;
+			if (boss_shill == SHOOT && boss.base.shootCooldown <= 0) {
+				BossScatterShoot(boss.base, boss_range, boss_rangeMax, boss.base.shootCooldown, 180.0f, 11);
 			}
 			if (h.hit) {
 				ApplyDamage(player.base, boss.base.damage);
 			}
-
 
 			break;
 		}
@@ -1049,12 +1100,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			UpdateButton(scoreBtn_return);
 			if (scoreBtn_return.isClicked) {
-				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax, boss_melee, boss_range, boss_rangeMax, boss_meleeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = FIGHT;
 			}
 			UpdateButton(scoreBtn_return_title);
 			if (scoreBtn_return_title.isClicked) {
-				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax, boss_melee, boss_range, boss_rangeMax, boss_meleeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = START;
 			}
 
@@ -1066,12 +1117,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			UpdateButton(scoreBtn_return);
 			if (scoreBtn_return.isClicked) {
-				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax, boss_melee, boss_range, boss_rangeMax, boss_meleeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = FIGHT;
 			}
 			UpdateButton(scoreBtn_return_title);
 			if (scoreBtn_return_title.isClicked) {
-				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax, boss_melee, boss_range, boss_rangeMax, boss_meleeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = START;
 			}
 			break;
@@ -1084,30 +1135,25 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			UpdateButton(menuBtn_return);
 			if (menuBtn_return.isClicked) {
-				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax, boss_melee, boss_range, boss_rangeMax, boss_meleeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = FIGHT;
 			}
 			UpdateButton(menuBtn_return_title);
 			if (menuBtn_return_title.isClicked) {
-				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax, boss_melee, boss_range, boss_rangeMax, boss_meleeMax);
+				ALL(player, boss, camera, player_melee, player_range, meleeMax, rangeMax);
 				game_state = START;
 			}
 		}
 		}
-
-
-
-
 
 		if (keys[DIK_F11] && !preKeys[DIK_F11]) {
 			fullscreen = !fullscreen;
 			if (fullscreen) {
 				Novice::SetWindowMode(kFullscreen);
 			} else {
-			
-			Novice::SetWindowMode(kWindowed);
+
+				Novice::SetWindowMode(kWindowed);
 			}
-		
 		}
 
 		///
@@ -1131,39 +1177,41 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		case FIGHT: {
 
 			// 背景
-			Novice::DrawBox(0 - (int)camera.offset.x, 0 - (int)camera.offset.y, kWindowWitch, kWindowHeight, 0.0f, BLACK, kFillModeSolid);
+			Novice::DrawBox(0 - (int)camX, 0 - (int)camY, 1600, 800, 0.0f, BLACK, kFillModeSolid);
 
-			for (int y = 0; y < 28; y++) {
+			for (int y = 0; y < 25; y++) {
 				for (int x = 0; x < 50; x++) {
 					if (map[y][x] == 1) {
-						Novice::DrawBox((int)tile * x - (int)camera.offset.x, (int)tile * y - (int)camera.offset.y, tile, tile, 0.0f, WHITE, kFillModeWireFrame);
+						Novice::DrawBox((int)tile * x - (int)camX, (int)tile * y - (int)camY, tile, tile, 0.0f, WHITE, kFillModeWireFrame);
 					}
 				}
 			}
 
 			// boss
-			Novice::DrawBox((int)boss.base.pos.x - (int)camera.offset.x, (int)boss.base.pos.y - (int)camera.offset.y, (int)boss.base.width, (int)boss.base.height, 0.0f, WHITE, kFillModeWireFrame);
+			Novice::DrawBox((int)boss.base.pos.x - (int)camX, (int)boss.base.pos.y - (int)camY, (int)boss.base.width, (int)boss.base.height, 0.0f, WHITE, kFillModeWireFrame);
 			// player
-			Novice::DrawBox((int)player.base.pos.x - (int)camera.offset.x, (int)player.base.pos.y - (int)camera.offset.y, (int)player.base.width, (int)player.base.height, 0.0f, WHITE, kFillModeSolid);
+			Novice::DrawBox((int)player.base.pos.x - (int)camX, (int)player.base.pos.y - (int)camY, (int)player.base.width, (int)player.base.height, 0.0f, WHITE, kFillModeSolid);
 
 			for (int i = 0; i < meleeMax; i++) {
 				if (player_melee[i].isAlive) {
 
-					Novice::DrawBox((int)player_melee[i].pos.x, (int)player_melee[i].pos.y, (int)player_melee[i].width, (int)player_melee[i].height, 0.0f, WHITE, kFillModeSolid);
+					Novice::DrawBox(
+					    (int)player_melee[i].pos.x - (int)camX, (int)player_melee[i].pos.y - (int)camY, (int)player_melee[i].width, (int)player_melee[i].height, 0.0f, WHITE, kFillModeSolid);
 				}
 			}
 
 			for (int i = 0; i < rangeMax; i++) {
 				if (player_range[i].isAlive) {
 
-					Novice::DrawBox((int)player_range[i].pos.x, (int)player_range[i].pos.y, (int)player_range[i].width, (int)player_range[i].height, 0.0f, WHITE, kFillModeSolid);
+					Novice::DrawBox(
+					    (int)player_range[i].pos.x - (int)camX, (int)player_range[i].pos.y - (int)camY, (int)player_range[i].width, (int)player_range[i].height, 0.0f, WHITE, kFillModeSolid);
 				}
 			}
 
 			for (int i = 0; i < boss_rangeMax; i++) {
 				if (boss_range[i].isAlive) {
 
-					Novice::DrawBox((int)boss_range[i].pos.x, (int)boss_range[i].pos.y, (int)boss_range[i].width, (int)boss_range[i].height, 0.0f, WHITE, kFillModeSolid);
+					Novice::DrawBox((int)boss_range[i].pos.x - (int)camX, (int)boss_range[i].pos.y - (int)camY, (int)boss_range[i].width, (int)boss_range[i].height, 0.0f, WHITE, kFillModeSolid);
 				}
 			}
 
@@ -1171,7 +1219,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			for (int i = 0; i < prtmax; i++) {
 				if (blood[i].isAlive) {
-					Novice::DrawBox((int)blood[i].pos.x - (int)camera.offset.x, (int)blood[i].pos.y - (int)camera.offset.y, (int)blood[i].width, (int)blood[i].height, 0.0f, RED, kFillModeSolid);
+					Novice::DrawBox((int)blood[i].pos.x - (int)camX, (int)blood[i].pos.y - (int)camY, (int)blood[i].width, (int)blood[i].height, 0.0f, RED, kFillModeSolid);
 				}
 			}
 
@@ -1208,7 +1256,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				Novice::ScreenPrintf(0, Y += H, "BossBulletVec: %.2f, %.2f", boss_range[0].vec.x, boss_range[0].vec.y);
 			}
 
-			Novice::DrawLine((int)px, (int)py, (int)mouse.pos.x, (int)mouse.pos.y, RED);
+			Novice::DrawLine((int)px - (int)camX, (int)py - (int)camY, (int)mouse.pos.x, (int)mouse.pos.y, RED);
+
+			Novice::DrawBox(deadX, deadY, deadW, deadH, 0.0f, RED, kFillModeWireFrame);
 
 			DrawButton(stopBtn);
 			break;
