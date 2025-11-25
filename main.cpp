@@ -197,6 +197,10 @@ struct Shoot {
 
 struct Laser {
 	skillCharacter base;
+	float angle;
+	float rotateSpeed;
+	float rotateLimit;
+	float startAngle;
 };
 
 struct GroundSlam {
@@ -326,18 +330,31 @@ Particle InitPrt(Vector2 pos, ParticleType type) {
 
 // boss skill
 
-Laser InitLaser(Vector2 pos, BOSS_SKILL type) {
+Laser InitLaser(Character& boss, BOSS_SKILL type,Character&player) {
 	Laser l{};
-	l.base.pos = pos;
+	l.base.pos = {boss.pos.x + boss.width * 0.5f, boss.pos.y + boss.height * 0.5f};
 	l.base.vel = {0.0f, 0.0f};
-	l.base.width = 300.0f;
+	l.base.width = 500.0f;
 	l.base.height = 50.0f;
 	l.base.damege = 5;
 	l.base.type = type;
 	l.base.aliveTime = 90;
-	l.base.waitTime = 180;
+	l.base.waitTime = 60;
 	l.base.isAlive = false;
 	l.base.isWait = false;
+
+	float px = player.pos.x + player.width * 0.5f;
+	float py = player.pos.y + player.height * 0.5f;
+
+	float bx = boss.pos.x + boss.width * 0.5f;
+	float by = boss.pos.y + boss.height * 0.5f;
+
+	float angle = atan2f(py - by, px - bx);
+
+	l.angle = angle;
+	l.startAngle = angle;
+	l.rotateSpeed = 0.03f;
+	l.rotateLimit = 0.6f;
 
 	return l;
 }
@@ -898,11 +915,13 @@ void BossScatterShoot(Character& boss, Attack attackArray[], int attackMax, int&
 
 // スキル2　　　レーザー
 // rレーザーの生成
-void SpawLaser(Laser& laser, Character& boss) {
+void SpawLaser(Laser& laser, Character& boss, Character& player) {
 	if (!laser.base.isAlive && !laser.base.isWait) {
-		laser = InitLaser(boss.pos, LASER);
+		laser = InitLaser(boss, LASER,player);
 		// laser.base.isAlive = false;
 		laser.base.isWait = true;
+
+
 	}
 }
 
@@ -923,25 +942,60 @@ void UpdateLaser(Laser& laser) {
 		return;
 	}
 
+	laser.angle += laser.rotateSpeed;
+
+	// 超出角度限制 → 翻转方向
+	if (laser.angle > laser.startAngle + laser.rotateLimit || laser.angle < laser.startAngle - laser.rotateLimit) {
+		laser.rotateSpeed *= -1.0f;
+	}
+
 	laser.base.aliveTime--;
 	if (laser.base.aliveTime <= 0) {
 		laser.base.isAlive = false;
 	}
-
-	//
 }
 
 // レーザーの描画
-void DrawLaser(Laser& laser, float camX, float camY) {
-	if (!laser.base.isAlive && !laser.base.isWait) {
+void DrawLaser(Laser& laser, float camX, float camY, int tex) {
+	if (!laser.base.isAlive && !laser.base.isWait)
+		return;
+
+	float cx = laser.base.pos.x - camX;
+	float cy = laser.base.pos.y - camY;
+
+	float w = laser.base.width;  // ← 長さ（例：500）
+	float h = laser.base.height; // ← 太さ（例：50）
+
+	//===== 等待阶段：预兆线 =====
+	if (laser.base.isWait) {
+		float ex = cx + cosf(laser.angle) * w;
+		float ey = cy + sinf(laser.angle) * w;
+
+		Novice::DrawLine((int)cx, (int)cy, (int)ex, (int)ey, RED);
 		return;
 	}
 
-	if (laser.base.isWait) {
-		Novice::DrawBox((int)laser.base.pos.x - (int)camX, (int)laser.base.pos.y - (int)camY, (int)laser.base.width, (int)laser.base.height, 0.0f, RED, kFillModeWireFrame);
-	} else if (laser.base.isAlive) {
-		Novice::DrawBox((int)laser.base.pos.x - (int)camX, (int)laser.base.pos.y - (int)camY, (int)laser.base.width, (int)laser.base.height, 0.0f, RED, kFillModeSolid);
-	}
+	//===== 计算旋转矩形顶点 =====
+	float dx = cosf(laser.angle); // 方向单位向量
+	float dy = sinf(laser.angle);
+
+	float fx = dx * w; // 长度方向
+	float fy = dy * w;
+
+	float nx = -dy * (h * 0.5f); // 法线方向（半高度）
+	float ny = dx * (h * 0.5f);
+
+	Vector2 baseL = {cx, cy};           // 左边中点
+	Vector2 baseR = {cx + fx, cy + fy}; // 右边中点
+
+	// --- ✔ 四个顶点（没有变形）---
+	Vector2 p1{baseL.x + nx, baseL.y + ny}; // 左上
+	Vector2 p2{baseL.x - nx, baseL.y - ny}; // 左下
+	Vector2 p3{baseR.x - nx, baseR.y - ny}; // 右下
+	Vector2 p4{baseR.x + nx, baseR.y + ny}; // 右上
+
+	//===== 使用贴图绘制（关键） =====
+	Novice::DrawQuad((int)p1.x, (int)p1.y, (int)p2.x, (int)p2.y, (int)p3.x, (int)p3.y, (int)p4.x, (int)p4.y, 0, 0, (int)laser.base.width, (int)laser.base.height, tex, WHITE);
 }
 
 // 目からレーザー
@@ -1076,7 +1130,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	};
 
 	// レーザー
-	Laser laser = InitLaser(boss.base.pos, LASER);
+	Laser laser = InitLaser(boss.base, LASER,player.base);
 
 	// 目からレーザー
 	const int eyelaserMxa = 5;
@@ -1122,6 +1176,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	// ライブラリの初期化
 	Novice::Initialize(kWindowTitle, kWindowWitch, kWindowHeight);
+
+	int laserImager = Novice::LoadTexture("./imager/laser.png");
 
 	// キー入力結果を受け取る箱
 	char keys[256] = {0};
@@ -1351,8 +1407,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			//	ApplyDamage(player.base, boss.base.damage);
 			//}
 
-			if (keys[DIK_1] && !preKeys[DIK_1]) { // 右键测试
-				SpawLaser(laser, boss.base);
+			if (keys[DIK_1] && !preKeys[DIK_1]) { 
+				SpawLaser(laser, boss.base,player.base);
 			}
 			if (keys[DIK_2] && !preKeys[DIK_2]) {
 				SpawEyeLaser(eyeLaser, eyelaserMxa);
@@ -1452,20 +1508,14 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			// 背景
 			Novice::DrawBox(0 - (int)camX, 0 - (int)camY, 1600, 800, 0.0f, BLACK, kFillModeSolid);
 
-			for (int y = 0; y < 25; y++) {
-				for (int x = 0; x < 50; x++) {
-					if (map[y][x] == 1) {
-						Novice::DrawBox((int)tile * x - (int)camX, (int)tile * y - (int)camY, tile, tile, 0.0f, WHITE, kFillModeWireFrame);
-					}
-				}
-			}
+
 
 			// boss
 			Novice::DrawBox((int)boss.base.pos.x - (int)camX, (int)boss.base.pos.y - (int)camY, (int)boss.base.width, (int)boss.base.height, 0.0f, WHITE, kFillModeWireFrame);
 			// player
 			Novice::DrawBox((int)player.base.pos.x - (int)camX, (int)player.base.pos.y - (int)camY, (int)player.base.width, (int)player.base.height, 0.0f, WHITE, kFillModeSolid);
 
-			for (int i = 0; i < meleeMax; i++) {
+				for (int i = 0; i < meleeMax; i++) {
 				if (player_melee[i].isAlive) {
 
 					Novice::DrawBox(
@@ -1473,7 +1523,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				}
 			}
 
-			for (int i = 0; i < rangeMax; i++) {
+				for (int i = 0; i < rangeMax; i++) {
 				if (player_range[i].isAlive) {
 
 					Novice::DrawBox(
@@ -1488,9 +1538,26 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				}
 			}
 
+
+			DrawLaser(laser, camX, camY, laserImager);
+
+
+			for (int y = 0; y < 25; y++) {
+				for (int x = 0; x < 50; x++) {
+					if (map[y][x] == 1) {
+						Novice::DrawBox((int)tile * x - (int)camX, (int)tile * y - (int)camY, tile, tile, 0.0f, WHITE, kFillModeSolid);
+					}
+				}
+			}
+
+			
+		
+
+			
+
 			// boss　のスキル　描画
 			// レーザー
-			DrawLaser(laser, camX, camY);
+			
 			// 目からレーザー
 			DrawEyeLaser(eyeLaser, eyelaserMxa, camX, camY);
 
