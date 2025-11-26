@@ -330,7 +330,7 @@ Particle InitPrt(Vector2 pos, ParticleType type) {
 
 // boss skill
 
-Laser InitLaser(Character& boss, BOSS_SKILL type,Character&player) {
+Laser InitLaser(Character& boss, BOSS_SKILL type, Character& player) {
 	Laser l{};
 	l.base.pos = {boss.pos.x + boss.width * 0.5f, boss.pos.y + boss.height * 0.5f};
 	l.base.vel = {0.0f, 0.0f};
@@ -353,7 +353,7 @@ Laser InitLaser(Character& boss, BOSS_SKILL type,Character&player) {
 
 	l.angle = angle;
 	l.startAngle = angle;
-	l.rotateSpeed = 0.03f;
+	l.rotateSpeed = 0.02f;
 	l.rotateLimit = 0.6f;
 
 	return l;
@@ -379,11 +379,11 @@ GroundSlam InitgroundSlam(Vector2 pos, BOSS_SKILL type) {
 	GroundSlam g{};
 	g.base.pos = pos;
 	g.base.vel = {0.0f, 0.0f};
-	g.base.width = 50.0f;
-	g.base.height = 50.0f;
+	g.base.width = 160.0f;
+	g.base.height = 160.0f;
 	g.base.damege = 5;
 	g.base.type = type;
-	g.base.aliveTime = 90;
+	g.base.aliveTime = 60;
 	g.base.waitTime = 30;
 	g.base.isAlive = false;
 	g.base.isWait = false;
@@ -412,31 +412,31 @@ Charge InitCharge(BOSS_SKILL type) {
 // マップ
 int tile = 32;
 int map[25][50] = {
-    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-    {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1},
-    {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1},
-    {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+    {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
+    {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2},
 };
 
 void TileHit(Vector2* pos, Vector2* vel, float width, float height, int Map[25][50], int tile_sezi) {
@@ -461,10 +461,10 @@ void TileHit(Vector2* pos, Vector2* vel, float width, float height, int Map[25][
 			txR = 48;
 		}
 
-		if (vel->y < 0 && (Map[tyT][txL] == 1 || Map[tyT][txR] == 1)) {
+		if (vel->y < 0 && (Map[tyT][txL] == 2 || Map[tyT][txR] == 2)) {
 			pos->y = (tyT + 1) * (float)tile_sezi;
 		}
-		if (vel->y > 0 && (Map[tyB][txL] == 1 || Map[tyB][txR] == 1)) {
+		if (vel->y > 0 && (Map[tyB][txL] == 2 || Map[tyB][txR] == 2)) {
 			pos->y = tyB * tile_sezi - height;
 		}
 	}
@@ -480,10 +480,10 @@ void TileHit(Vector2* pos, Vector2* vel, float width, float height, int Map[25][
 		int tyT = T / tile_sezi;
 		int tyB = (B - 1) / tile_sezi;
 
-		if (vel->x < 0 && (Map[tyT][txL] == 1 || Map[tyB][txL] == 1)) {
+		if (vel->x < 0 && (Map[tyT][txL] == 2 || Map[tyB][txL] == 2)) {
 			pos->x = (txL + 1) * (float)tile_sezi;
 		}
-		if (vel->x > 0 && (Map[tyT][txR] == 1 || Map[tyB][txR] == 1)) {
+		if (vel->x > 0 && (Map[tyT][txR] == 2 || Map[tyB][txR] == 2)) {
 			pos->x = txR * tile_sezi - width;
 		}
 	}
@@ -497,7 +497,7 @@ bool BulletTileHit(Attack att, int Map[25][50], int tile_sezi) {
 	int tx = (int)px / tile_sezi;
 	int ty = (int)py / tile_sezi;
 
-	if (Map[ty][tx] == 1) {
+	if (Map[ty][tx] == 2) {
 		isHit = true;
 	}
 	return isHit;
@@ -914,14 +914,12 @@ void BossScatterShoot(Character& boss, Attack attackArray[], int attackMax, int&
 }
 
 // スキル2　　　レーザー
-// rレーザーの生成
+// レーザーの生成
 void SpawLaser(Laser& laser, Character& boss, Character& player) {
 	if (!laser.base.isAlive && !laser.base.isWait) {
-		laser = InitLaser(boss, LASER,player);
+		laser = InitLaser(boss, LASER, player);
 		// laser.base.isAlive = false;
 		laser.base.isWait = true;
-
-
 	}
 }
 
@@ -963,8 +961,8 @@ void DrawLaser(Laser& laser, float camX, float camY, int tex) {
 	float cx = laser.base.pos.x - camX;
 	float cy = laser.base.pos.y - camY;
 
-	float w = laser.base.width;  // ← 長さ（例：500）
-	float h = laser.base.height; // ← 太さ（例：50）
+	float w = laser.base.width;
+	float h = laser.base.height;
 
 	//===== 等待阶段：预兆线 =====
 	if (laser.base.isWait) {
@@ -979,7 +977,7 @@ void DrawLaser(Laser& laser, float camX, float camY, int tex) {
 	float dx = cosf(laser.angle); // 方向单位向量
 	float dy = sinf(laser.angle);
 
-	float fx = dx * w; // 长度方向
+	float fx = dx * w;
 	float fy = dy * w;
 
 	float nx = -dy * (h * 0.5f); // 法线方向（半高度）
@@ -988,30 +986,46 @@ void DrawLaser(Laser& laser, float camX, float camY, int tex) {
 	Vector2 baseL = {cx, cy};           // 左边中点
 	Vector2 baseR = {cx + fx, cy + fy}; // 右边中点
 
-	// --- ✔ 四个顶点（没有变形）---
-	Vector2 p1{baseL.x + nx, baseL.y + ny}; // 左上
-	Vector2 p2{baseL.x - nx, baseL.y - ny}; // 左下
-	Vector2 p3{baseR.x - nx, baseR.y - ny}; // 右下
-	Vector2 p4{baseR.x + nx, baseR.y + ny}; // 右上
+	Vector2 pLT = {baseL.x + nx, baseL.y + ny}; // 左上
+	Vector2 pLB = {baseL.x - nx, baseL.y - ny}; // 左下
+	Vector2 pRB = {baseR.x - nx, baseR.y - ny}; // 右下
+	Vector2 pRT = {baseR.x + nx, baseR.y + ny}; // 右上
 
-	//===== 使用贴图绘制（关键） =====
-	Novice::DrawQuad((int)p1.x, (int)p1.y, (int)p2.x, (int)p2.y, (int)p3.x, (int)p3.y, (int)p4.x, (int)p4.y, 0, 0, (int)laser.base.width, (int)laser.base.height, tex, WHITE);
+	Novice::DrawQuad(
+	    (int)pLT.x, (int)pLT.y, // 左上
+	    (int)pRT.x, (int)pRT.y, // 右上
+	    (int)pLB.x, (int)pLB.y, // 左下
+	    (int)pRB.x, (int)pRB.y, // 右下
+	    0, 0, (int)laser.base.width, (int)laser.base.height, tex, WHITE);
 }
 
 // 目からレーザー
 // 生成
-void SpawEyeLaser(EyeLaser eyelaser[], int max) {
+void SpawEyeLaser(EyeLaser eyelaser[], int max, int Map[25][50], int Tile) {
 
 	for (int i = 0; i < max; i++) {
 		if (!eyelaser[i].base.isAlive && !eyelaser[i].base.isWait) {
 
-			Vector2 v{};
-			v.x = rand() / (float)RAND_MAX * 1280;
-			v.y = rand() / (float)RAND_MAX * 720;
+			while (true) {
 
-			eyelaser[i] = InitEyeLaser(v, EYELASER);
-			eyelaser[i].base.isWait = true;
-			eyelaser[i].base.isAlive = false;
+				int tx = rand() % 50;
+				int ty = rand() % 25;
+
+				if (Map[ty][tx] == 1 && Map[ty + 5][tx + 5] == 1 && Map[ty - 5][tx - 5] == 1) {
+
+					Vector2 v{};
+
+					v.x = (float)(tx * Tile + Tile );
+					v.y = (float)(ty * Tile + Tile );
+
+					eyelaser[i] = InitEyeLaser(v, EYELASER);
+
+					eyelaser[i].base.isWait = true;
+					eyelaser[i].base.isAlive = false;
+					break;
+				}
+			}
+
 			// return;
 		}
 	}
@@ -1040,9 +1054,13 @@ void UpdateEyelaser(EyeLaser eyelaser[], int max) {
 		}
 
 		// 更新
+
+
+
 	}
 }
 
+// 目からレーザー生成
 void DrawEyeLaser(EyeLaser eyelaser[], int max, float camX, float camY) {
 	for (int i = 0; i < max; i++) {
 		if (!eyelaser[i].base.isAlive && !eyelaser[i].base.isWait) {
@@ -1054,6 +1072,79 @@ void DrawEyeLaser(EyeLaser eyelaser[], int max, float camX, float camY) {
 
 		} else if (eyelaser[i].base.isAlive) {
 			Novice::DrawBox((int)eyelaser[i].base.pos.x - (int)camX, (int)eyelaser[i].base.pos.y - (int)camY, (int)eyelaser[i].base.width, (int)eyelaser[i].base.height, 0.0f, RED, kFillModeSolid);
+		}
+	}
+}
+
+// 地面攻撃生成
+void SpawGroundSlam(GroundSlam groundSlam[], int max, int Map[25][50], int Tile) {
+
+	for (int i = 0; i < max; i++) {
+		if (!groundSlam[i].base.isAlive && !groundSlam[i].base.isWait) {
+
+				while (true) {
+
+				int tx = rand() % 50;
+				int ty = rand() % 25;
+
+				if (Map[ty][tx] == 1 && Map[ty + 3][tx + 3] == 1 && Map[ty - 3][tx - 3] == 1) {
+
+					Vector2 v{};
+
+					v.x = (float)(tx * Tile + Tile );
+					v.y = (float)(ty * Tile + Tile);
+
+					groundSlam[i] = InitgroundSlam(v, GROUNDSLAM);
+
+					groundSlam[i].base.isWait = true;
+					groundSlam[i].base.isAlive = false;
+					break;
+				}
+			}
+		}
+	}
+}
+
+// 地面攻撃更新
+void UpdateGroundSlam(GroundSlam groundSlam[], int max) {
+	for (int i = 0; i < max; i++) {
+
+		if (groundSlam[i].base.isWait) {
+			if (UpdateSkillWait(groundSlam[i].base)) {
+				groundSlam[i].base.isAlive = true;
+				groundSlam[i].base.isWait = false;
+			}
+
+			continue;
+		}
+
+		if (!groundSlam[i].base.isAlive) {
+			continue;
+		}
+
+		groundSlam[i].base.aliveTime--;
+		if (groundSlam[i].base.aliveTime <= 0) {
+			groundSlam[i].base.isAlive = false;
+		}
+
+		// 更新
+	}
+}
+
+// 地面攻撃描画
+void DrawGroundSlam(GroundSlam groundSlam[], int max, float camX, float camY) {
+	for (int i = 0; i < max; i++) {
+		if (!groundSlam[i].base.isAlive && !groundSlam[i].base.isWait) {
+			continue;
+		}
+
+		if (groundSlam[i].base.isWait) {
+			Novice::DrawBox(
+			    (int)groundSlam[i].base.pos.x - (int)camX, (int)groundSlam[i].base.pos.y - (int)camY, (int)groundSlam[i].base.width, (int)groundSlam[i].base.height, 0.0f, RED, kFillModeWireFrame);
+
+		} else if (groundSlam[i].base.isAlive) {
+			Novice::DrawBox(
+			    (int)groundSlam[i].base.pos.x - (int)camX, (int)groundSlam[i].base.pos.y - (int)camY, (int)groundSlam[i].base.width, (int)groundSlam[i].base.height, 0.0f, RED, kFillModeSolid);
 		}
 	}
 }
@@ -1130,11 +1221,15 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	};
 
 	// レーザー
-	Laser laser = InitLaser(boss.base, LASER,player.base);
+	Laser laser = InitLaser(boss.base, LASER, player.base);
 
 	// 目からレーザー
-	const int eyelaserMxa = 5;
-	EyeLaser eyeLaser[eyelaserMxa]{};
+	const int eyelaserMax = 3;
+	EyeLaser eyeLaser[eyelaserMax]{};
+
+	// 地面攻撃
+	const int groundSlamMax = 4;
+	GroundSlam groundSlam[groundSlamMax];
 
 	const int meleeMax = 1;
 	const int rangeMax = 40;
@@ -1178,6 +1273,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	Novice::Initialize(kWindowTitle, kWindowWitch, kWindowHeight);
 
 	int laserImager = Novice::LoadTexture("./imager/laser.png");
+	int tileMapImager = Novice::LoadTexture("./imager/tileMap.png");
 
 	// キー入力結果を受け取る箱
 	char keys[256] = {0};
@@ -1378,40 +1474,43 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			// bossの攻撃
 			//===============================================================================================================================================================================================================================
 
-			// float PX = player.base.pos.x + player.base.width / 2;
-			// float PY = player.base.pos.y + player.base.height / 2;
+			float PX = player.base.pos.x + player.base.width / 2;
+			float PY = player.base.pos.y + player.base.height / 2;
 
-			// float BX = boss.base.pos.x + boss.base.width / 2;
-			// float BY = boss.base.pos.y + boss.base.height / 2;
+			float BX = boss.base.pos.x + boss.base.width / 2;
+			float BY = boss.base.pos.y + boss.base.height / 2;
 
-			//	boss.base.dir.x = PX - BX;
-			// boss.base.dir.y = PY - BY;
+			boss.base.dir.x = PX - BX;
+			boss.base.dir.y = PY - BY;
 
-			//	float LEN = sqrtf(boss.base.dir.x * boss.base.dir.x + boss.base.dir.y * boss.base.dir.y);
-			// if (LEN > 0) {
-			//	boss.base.dir.x /= LEN;
-			//	boss.base.dir.y /= LEN;
-			//}
+			float LEN = sqrtf(boss.base.dir.x * boss.base.dir.x + boss.base.dir.y * boss.base.dir.y);
+			if (LEN > 0) {
+				boss.base.dir.x /= LEN;
+				boss.base.dir.y /= LEN;
+			}
 
-			// if (boss.base.shootCooldown > 0) {
-			//	boss.base.shootCooldown--;
-			// }
+			if (boss.base.shootCooldown > 0) {
+				boss.base.shootCooldown--;
+			}
 
-			// HitEvent h = Attack_Update(boss.base, player.base, boss_range, boss_rangeMax);
+			HitEvent h = Attack_Update(boss.base, player.base, boss_range, boss_rangeMax);
 
-			// bool wantFire = true;
-			// if (boss_shill == SHOOT && boss.base.shootCooldown <= 0) {
-			//	BossScatterShoot(boss.base, boss_range, boss_rangeMax, boss.base.shootCooldown, 180.0f, 11);
-			//}
-			// if (h.hit) {
-			//	ApplyDamage(player.base, boss.base.damage);
-			//}
+			bool wantFire = keys[DIK_0] && !preKeys[DIK_0];
+			if (boss_shill == SHOOT && boss.base.shootCooldown <= 0 && wantFire) {
+				BossScatterShoot(boss.base, boss_range, boss_rangeMax, boss.base.shootCooldown, 180.0f, 11);
+			}
+			if (h.hit) {
+				ApplyDamage(player.base, boss.base.damage);
+			}
 
-			if (keys[DIK_1] && !preKeys[DIK_1]) { 
-				SpawLaser(laser, boss.base,player.base);
+			if (keys[DIK_1] && !preKeys[DIK_1]) {
+				SpawLaser(laser, boss.base, player.base);
 			}
 			if (keys[DIK_2] && !preKeys[DIK_2]) {
-				SpawEyeLaser(eyeLaser, eyelaserMxa);
+				SpawEyeLaser(eyeLaser, eyelaserMax, map, tile);
+			}
+			if (keys[DIK_3] && !preKeys[DIK_3]) {
+				SpawGroundSlam(groundSlam, groundSlamMax,  map, tile);
 			}
 
 			// レーザー
@@ -1419,8 +1518,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			UpdateLaser(laser);
 
 			// 目からレーザー
+			UpdateEyelaser(eyeLaser, eyelaserMax);
 
-			UpdateEyelaser(eyeLaser, eyelaserMxa);
+			// 地面攻撃
+			UpdateGroundSlam(groundSlam, groundSlamMax);
 
 			break;
 		}
@@ -1508,14 +1609,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			// 背景
 			Novice::DrawBox(0 - (int)camX, 0 - (int)camY, 1600, 800, 0.0f, BLACK, kFillModeSolid);
 
-
-
-			// boss
 			Novice::DrawBox((int)boss.base.pos.x - (int)camX, (int)boss.base.pos.y - (int)camY, (int)boss.base.width, (int)boss.base.height, 0.0f, WHITE, kFillModeWireFrame);
 			// player
 			Novice::DrawBox((int)player.base.pos.x - (int)camX, (int)player.base.pos.y - (int)camY, (int)player.base.width, (int)player.base.height, 0.0f, WHITE, kFillModeSolid);
+		
 
-				for (int i = 0; i < meleeMax; i++) {
+			for (int i = 0; i < meleeMax; i++) {
 				if (player_melee[i].isAlive) {
 
 					Novice::DrawBox(
@@ -1523,7 +1622,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				}
 			}
 
-				for (int i = 0; i < rangeMax; i++) {
+			for (int i = 0; i < rangeMax; i++) {
 				if (player_range[i].isAlive) {
 
 					Novice::DrawBox(
@@ -1538,28 +1637,27 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				}
 			}
 
-
+			// レーザー
 			DrawLaser(laser, camX, camY, laserImager);
-
 
 			for (int y = 0; y < 25; y++) {
 				for (int x = 0; x < 50; x++) {
-					if (map[y][x] == 1) {
-						Novice::DrawBox((int)tile * x - (int)camX, (int)tile * y - (int)camY, tile, tile, 0.0f, WHITE, kFillModeSolid);
-					}
+					if (map[y][x] == 2) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMapImager, 1, 1, 0.0f, WHITE);
+					} 
 				}
 			}
 
-			
-		
-
+				// boss
 			
 
 			// boss　のスキル　描画
-			// レーザー
-			
+
 			// 目からレーザー
-			DrawEyeLaser(eyeLaser, eyelaserMxa, camX, camY);
+			DrawEyeLaser(eyeLaser, eyelaserMax, camX, camY);
+
+			// 地面攻撃
+			DrawGroundSlam(groundSlam, groundSlamMax, camX, camY);
 
 			// 血
 
@@ -1606,6 +1704,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				Novice::ScreenPrintf(0, Y += H, "laser_IsAliveTime:  %d", laser.base.isAlive);
 				Novice::ScreenPrintf(0, Y += H, "eyeLaser_IsAliveTime:  %d", eyeLaser->base.aliveTime);
 				Novice::ScreenPrintf(0, Y += H, "eyeLaser_waitTime:  %d", eyeLaser->base.waitTime);
+				Novice::ScreenPrintf(0, Y += H, " groundPos:  %0.2f,%0.2f", groundSlam->base.pos.x, groundSlam->base.pos.y);
 			}
 
 			Novice::DrawLine((int)px - (int)camX, (int)py - (int)camY, (int)mouse.pos.x, (int)mouse.pos.y, RED);
