@@ -133,6 +133,9 @@ struct Player {
 // Boss
 struct Boss {
 	Character base;
+	int skillCooldown = 0;
+	int skillWaitTime = 60;
+	BOSS_SKILL currentSkill = SHOOT;
 };
 
 // playerとplayerとbossの攻撃の共有宣言
@@ -229,8 +232,8 @@ Player InitPlayer(float x, float y) {
 	p.base.damage = 10;
 	p.base.invincible_time = 60;
 	p.base.shootCooldown = 0;
-	p.base.width = 40.0f;
-	p.base.height = 40.0f;
+	p.base.width = 64.0f;
+	p.base.height = 64.0f;
 	p.base.speed = 0;
 	p.base.dash_speed = 15;
 	p.base.dash_time = 0;
@@ -267,10 +270,7 @@ Boss InitBoss(float x, float y) {
 	b.base.isAlive = true;
 	b.base.isHit = false;
 	b.base.isInvincible = false;
-	b.base.bulletSpeed = 7.0f;
-	b.base.bulletdamege = 10;
-	b.base.bulletTime = 90;
-	b.base.bulletSezi = 25.0f;
+
 	return b;
 }
 
@@ -329,6 +329,9 @@ Particle InitPrt(Vector2 pos, ParticleType type) {
 }
 
 // boss skill
+
+
+
 
 Laser InitLaser(Character& boss, BOSS_SKILL type, Character& player) {
 	Laser l{};
@@ -489,13 +492,17 @@ void TileHit(Vector2* pos, Vector2* vel, float width, float height, int Map[25][
 	}
 }
 
-bool BulletTileHit(Attack att, int Map[25][50], int tile_sezi) {
+bool BulletTileHit(Attack atk, int Map[25][50], int tile_sezi) {
 	bool isHit = false;
-	float px = att.pos.x + att.width * 0.5f;
-	float py = att.pos.y + att.height * 0.5f;
+	float px = atk.pos.x + atk.width * 0.5f;
+	float py = atk.pos.y + atk.height * 0.5f;
 
 	int tx = (int)px / tile_sezi;
 	int ty = (int)py / tile_sezi;
+
+	if (tx < 0 || tx >= 50 || ty < 0 || ty >= 25) {
+		return true;
+	}
 
 	if (Map[ty][tx] == 2) {
 		isHit = true;
@@ -627,6 +634,8 @@ void Move(Vector2& pos, Vector2& vec, float width, float height, float speed) {
 
 // 共有の当たり判定の関数（aabb判定）
 bool isHit(const Character& a, const Character& b) { return (a.pos.x < b.pos.x + b.width && a.pos.x + a.width > b.pos.x && a.pos.y < b.pos.y + b.height && a.pos.y + a.height > b.pos.y); }
+
+bool isSkillHit(const skillCharacter& a, const Character& b) { return (a.pos.x < b.pos.x + b.width && a.pos.x + a.width > b.pos.x && a.pos.y < b.pos.y + b.height && a.pos.y + a.height > b.pos.y); }
 
 //============================================================================================
 // 攻撃について関数
@@ -883,35 +892,8 @@ bool UpdateSkillWait(skillCharacter& skill) {
 }
 
 // スキル１
-void BossScatterShoot(Character& boss, Attack attackArray[], int attackMax, int& cooldown, float spreadAngleDeg, int bulletCount) {
-	if (cooldown > 0)
-		return;
 
-	float angleCenter = atan2f(boss.dir.y, boss.dir.x);
-	float halfSpread = (spreadAngleDeg * 0.5f) * (3.14159f / 180.0f);
-	float angleStep = (spreadAngleDeg / (float)(bulletCount - 1)) * (3.14159f / 180.0f);
 
-	for (int i = 0; i < bulletCount; i++) {
-
-		float angle = angleCenter - halfSpread + angleStep * i;
-
-		for (int j = 0; j < attackMax; j++) {
-			if (!attackArray[j].isAlive) {
-
-				attackArray[j] = Attack_Range(boss);
-
-				attackArray[j].vel.x = cosf(angle);
-				attackArray[j].vel.y = sinf(angle);
-
-				attackArray[j].isAlive = true;
-
-				break;
-			}
-		}
-	}
-
-	cooldown = 40;
-}
 
 // スキル2　　　レーザー
 // レーザーの生成
@@ -927,9 +909,6 @@ void SpawLaser(Laser& laser, Character& boss, Character& player) {
 
 void UpdateLaser(Laser& laser) {
 
-	if (!laser.base.isAlive) {
-		return;
-	}
 	if (laser.base.isWait) {
 		if (!UpdateSkillWait(laser.base)) {
 			return;
@@ -937,6 +916,10 @@ void UpdateLaser(Laser& laser) {
 
 		laser.base.isAlive = true;
 		laser.base.isWait = false;
+		return;
+	}
+
+	if (!laser.base.isAlive) {
 		return;
 	}
 
@@ -1015,8 +998,8 @@ void SpawEyeLaser(EyeLaser eyelaser[], int max, int Map[25][50], int Tile) {
 
 					Vector2 v{};
 
-					v.x = (float)(tx * Tile + Tile );
-					v.y = (float)(ty * Tile + Tile );
+					v.x = (float)(tx * Tile + Tile);
+					v.y = (float)(ty * Tile + Tile);
 
 					eyelaser[i] = InitEyeLaser(v, EYELASER);
 
@@ -1054,9 +1037,6 @@ void UpdateEyelaser(EyeLaser eyelaser[], int max) {
 		}
 
 		// 更新
-
-
-
 	}
 }
 
@@ -1082,16 +1062,20 @@ void SpawGroundSlam(GroundSlam groundSlam[], int max, int Map[25][50], int Tile)
 	for (int i = 0; i < max; i++) {
 		if (!groundSlam[i].base.isAlive && !groundSlam[i].base.isWait) {
 
-				while (true) {
+			while (true) {
 
 				int tx = rand() % 50;
 				int ty = rand() % 25;
+
+				if (tx <= 5 || tx >= 44 || ty <= 5 || ty >= 19) {
+					continue;
+				}
 
 				if (Map[ty][tx] == 1 && Map[ty + 3][tx + 3] == 1 && Map[ty - 3][tx - 3] == 1) {
 
 					Vector2 v{};
 
-					v.x = (float)(tx * Tile + Tile );
+					v.x = (float)(tx * Tile + Tile);
 					v.y = (float)(ty * Tile + Tile);
 
 					groundSlam[i] = InitgroundSlam(v, GROUNDSLAM);
@@ -1231,14 +1215,19 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	const int groundSlamMax = 4;
 	GroundSlam groundSlam[groundSlamMax];
 
+	// 弾発射
+	
+	bool laserSkillStarted = false;
+	bool eyeSkillStarted = false;
+	bool groundSkillStarted = false;
+	bool bossShootStarted = false;
+
+	int skillCountMax = 4; //
+
 	const int meleeMax = 1;
 	const int rangeMax = 40;
-	// const int boss_meleeMax = 1;
-	const int boss_rangeMax = 32;
 	Attack player_melee[meleeMax]{};
 	Attack player_range[rangeMax]{};
-	// Attack boss_melee[meleeMax]{};
-	Attack boss_range[boss_rangeMax]{};
 
 	// リロード
 	Reload reload{
@@ -1274,6 +1263,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	int laserImager = Novice::LoadTexture("./imager/laser.png");
 	int tileMapImager = Novice::LoadTexture("./imager/tileMap.png");
+	int playerImager = Novice::LoadTexture("./imager/player.png");
 
 	// キー入力結果を受け取る箱
 	char keys[256] = {0};
@@ -1493,28 +1483,118 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				boss.base.shootCooldown--;
 			}
 
-			HitEvent h = Attack_Update(boss.base, player.base, boss_range, boss_rangeMax);
+			boss.skillCooldown--;
+			if (boss.skillCooldown < 0)
+				boss.skillCooldown = 0;
 
-			bool wantFire = keys[DIK_0] && !preKeys[DIK_0];
-			if (boss_shill == SHOOT && boss.base.shootCooldown <= 0 && wantFire) {
-				BossScatterShoot(boss.base, boss_range, boss_rangeMax, boss.base.shootCooldown, 180.0f, 11);
-			}
-			if (h.hit) {
-				ApplyDamage(player.base, boss.base.damage);
-			}
+			switch (boss_start) {
 
-			if (keys[DIK_1] && !preKeys[DIK_1]) {
-				SpawLaser(laser, boss.base, player.base);
-			}
-			if (keys[DIK_2] && !preKeys[DIK_2]) {
-				SpawEyeLaser(eyeLaser, eyelaserMax, map, tile);
-			}
-			if (keys[DIK_3] && !preKeys[DIK_3]) {
-				SpawGroundSlam(groundSlam, groundSlamMax,  map, tile);
+			case IDLE: // ===============================
+				if (boss.skillCooldown <= 0) {
+					boss_start = SELECT_SKILL;
+				}
+				break;
+
+			case SELECT_SKILL: // =========================
+			{
+				int r = rand() % skillCountMax;
+
+				if (r == 0) {
+					boss.currentSkill = SHOOT;
+				}
+				if (r == 1) {
+					boss.currentSkill = LASER;
+				}
+				if (r == 2) {
+					boss.currentSkill = EYELASER;
+				}
+				if (r == 3) {
+					boss.currentSkill = GROUNDSLAM;
+				}
+
+				// 重置技能开始标志
+				laserSkillStarted = false;
+				eyeSkillStarted = false;
+				groundSkillStarted = false;
+
+				boss_start = CAST_SKILL;
+			} break;
+
+			case CAST_SKILL: // ==========================
+				switch (boss.currentSkill) {
+
+				// ---------------------------------------
+				case SHOOT:
+					
+							boss_start = IDLE;
+							boss.skillCooldown = 120;
+							bossShootStarted = false;
+					
+					break;
+
+				// ---------------------------------------
+				case LASER:
+					if (!laserSkillStarted) {
+						SpawLaser(laser, boss.base, player.base);
+						laserSkillStarted = true;
+					}
+
+					if (!laser.base.isAlive && !laser.base.isWait && laserSkillStarted) {
+						boss_start = IDLE;
+						boss.skillCooldown = 160;
+						laserSkillStarted = false;
+					}
+					break;
+
+				// ---------------------------------------
+				case EYELASER: {
+					if (!eyeSkillStarted) {
+						SpawEyeLaser(eyeLaser, eyelaserMax, map, tile);
+						eyeSkillStarted = true;
+					}
+
+					bool allDone = true;
+					for (int i = 0; i < eyelaserMax; i++) {
+						if (eyeLaser[i].base.isAlive || eyeLaser[i].base.isWait) {
+							allDone = false;
+							break;
+						}
+					}
+
+					if (allDone && eyeSkillStarted) {
+						boss_start = IDLE;
+						boss.skillCooldown = 200;
+						eyeSkillStarted = false;
+					}
+				} break;
+
+				// ---------------------------------------
+				case GROUNDSLAM: {
+					if (!groundSkillStarted) {
+						SpawGroundSlam(groundSlam, groundSlamMax, map, tile);
+						groundSkillStarted = true;
+					}
+
+					bool allDone = true;
+					for (int i = 0; i < groundSlamMax; i++) {
+						if (groundSlam[i].base.isAlive || groundSlam[i].base.isWait) {
+							allDone = false;
+							break;
+						}
+					}
+
+					if (allDone && groundSkillStarted) {
+						boss_start = IDLE;
+						boss.skillCooldown = 180;
+						groundSkillStarted = false;
+					}
+				} break;
+				}
+				break;
 			}
 
 			// レーザー
-			UpdateSkillWait(laser.base);
+			// UpdateSkillWait(laser.base);
 			UpdateLaser(laser);
 
 			// 目からレーザー
@@ -1522,6 +1602,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			// 地面攻撃
 			UpdateGroundSlam(groundSlam, groundSlamMax);
+			// 弾発射
+			
 
 			break;
 		}
@@ -1612,8 +1694,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Novice::DrawBox((int)boss.base.pos.x - (int)camX, (int)boss.base.pos.y - (int)camY, (int)boss.base.width, (int)boss.base.height, 0.0f, WHITE, kFillModeWireFrame);
 			// player
 			Novice::DrawBox((int)player.base.pos.x - (int)camX, (int)player.base.pos.y - (int)camY, (int)player.base.width, (int)player.base.height, 0.0f, WHITE, kFillModeSolid);
-		
-
+			Novice::DrawSprite((int)player.base.pos.x - (int)camX, (int)player.base.pos.y - (int)camY, playerImager, 1, 1, 0.0f, WHITE);
 			for (int i = 0; i < meleeMax; i++) {
 				if (player_melee[i].isAlive) {
 
@@ -1630,13 +1711,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				}
 			}
 
-			for (int i = 0; i < boss_rangeMax; i++) {
-				if (boss_range[i].isAlive) {
-
-					Novice::DrawBox((int)boss_range[i].pos.x - (int)camX, (int)boss_range[i].pos.y - (int)camY, (int)boss_range[i].width, (int)boss_range[i].height, 0.0f, WHITE, kFillModeSolid);
-				}
-			}
-
 			// レーザー
 			DrawLaser(laser, camX, camY, laserImager);
 
@@ -1644,12 +1718,11 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				for (int x = 0; x < 50; x++) {
 					if (map[y][x] == 2) {
 						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMapImager, 1, 1, 0.0f, WHITE);
-					} 
+					}
 				}
 			}
 
-				// boss
-			
+			// boss
 
 			// boss　のスキル　描画
 
@@ -1658,6 +1731,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			// 地面攻撃
 			DrawGroundSlam(groundSlam, groundSlamMax, camX, camY);
+
+			// 弾発射
+			
 
 			// 血
 
@@ -1691,13 +1767,11 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				Novice::ScreenPrintf(0, Y += H, "ReloadMax: %d", reload.bulletMax);
 				Novice::ScreenPrintf(0, Y += H, "ReloadTime: %f", reload.reload_time);
 				Novice::ScreenPrintf(0, Y += H, "isReload: %d", reload.isReload);
-				Novice::ScreenPrintf(0, Y += H, "boss_range: %d", boss_range->isAlive);
 				Novice::ScreenPrintf(0, Y += H, "playerDir_X: %f", player.base.dir.x);
 				Novice::ScreenPrintf(0, Y += H, "playerDir_Y: %f", player.base.dir.y);
 				Novice::ScreenPrintf(0, Y += H, "BossShootTime: %d", boss.base.shootCooldown);
 				Novice::ScreenPrintf(0, Y += H, "BOSSDir_X: %f", boss.base.dir.x);
 				Novice::ScreenPrintf(0, Y += H, "BOSSDir_Y: %f", boss.base.dir.y);
-				Novice::ScreenPrintf(0, Y += H, "BossBulletVec: %.2f, %.2f", boss_range[0].vel.x, boss_range[0].vel.y);
 				Novice::ScreenPrintf(0, Y += H, "laser_waitTime:  %d", laser.base.waitTime);
 				Novice::ScreenPrintf(0, Y += H, "laser_Iswait:  %d", laser.base.isWait);
 				Novice::ScreenPrintf(0, Y += H, "laser_aliveTime:  %d", laser.base.aliveTime);
@@ -1705,6 +1779,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				Novice::ScreenPrintf(0, Y += H, "eyeLaser_IsAliveTime:  %d", eyeLaser->base.aliveTime);
 				Novice::ScreenPrintf(0, Y += H, "eyeLaser_waitTime:  %d", eyeLaser->base.waitTime);
 				Novice::ScreenPrintf(0, Y += H, " groundPos:  %0.2f,%0.2f", groundSlam->base.pos.x, groundSlam->base.pos.y);
+				Novice::ScreenPrintf(0, Y += H, "Boss_State: %d", boss_start);
+				Novice::ScreenPrintf(0, Y += H, "Boss_Skill: %d", boss.currentSkill);
+				Novice::ScreenPrintf(0, Y += H, "Skill_CD: %d", boss.skillCooldown);
 			}
 
 			Novice::DrawLine((int)px - (int)camX, (int)py - (int)camY, (int)mouse.pos.x, (int)mouse.pos.y, RED);
