@@ -1,7 +1,7 @@
 #define _USE_MATH_DEFINES
 #include <Novice.h>
 #include <math.h>
-const char kWindowTitle[] = "GC1B_01_カ_アン";
+const char kWindowTitle[] = "5203_ディヴァイル・ハンター";
 
 #pragma region
 #pragma endregion
@@ -1835,6 +1835,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	// 説明
 	backBtn.tex1 = Novice::LoadTexture("./imager/ui_back_on.png");
 	backBtn.tex2 = Novice::LoadTexture("./imager/ui_back_off.png");
+	int aim = Novice::LoadTexture("./imager/aim.png");
 
 	/// bgm
 	int titleBgm = Novice::LoadAudio("./Sounds/title.wav");
@@ -1866,6 +1867,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	int playerHitBgm = Novice::LoadAudio("./Sounds/playerHit.wav");
 	int playerHitHandle = -1;
 
+	int bossHitBgm = Novice::LoadAudio("./Sounds/bossHit.wav");
+	int bossHitHandle = -1;
 
 	// キー入力結果を受け取る箱
 	char keys[256] = {0};
@@ -2132,6 +2135,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 						}
 
 						if (e.hit && boss.base.isAlive) {
+							if (!Novice::IsPlayingAudio(bossHitHandle)) {
+								bossHitHandle = Novice::PlayAudio(bossHitBgm, false, 1.0f);
+							}
 							ApplyDamage(boss.base, player.base.bulletdamege, false);
 							ApplyCameraShake(camera, 5, 10);
 							SpawPrt(e.hitPos, PRT_BLODD, blood, prtmax);
@@ -3099,7 +3105,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			break;
 		}
 		}
-		Novice::DrawEllipse((int)mouse.pos.x, (int)mouse.pos.y, 10, 10, 0.0f, GREEN, kFillModeSolid);
+		Novice::DrawSprite((int)mouse.pos.x, (int)mouse.pos.y, aim, 1, 1, 0.0f, WHITE);
 
 		///
 		/// ↑描画処理ここまで
