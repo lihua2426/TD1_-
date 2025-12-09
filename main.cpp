@@ -126,12 +126,10 @@ struct UI {
 	bool dieEnd;
 	int tex; // 対応画像
 	float frameTime;
-	int frameCount; // アニメーション何枚
-	int currentFrame;                 // 今の画像何枚
+	int frameCount;   // アニメーション何枚
+	int currentFrame; // 今の画像何枚
 	float animTimer;
 };
-
-
 
 // playerとbossの共有宣言
 struct Character {
@@ -163,6 +161,8 @@ struct Character {
 // player
 struct Player {
 	Character base;
+	int maxHP;
+	int hpTex;
 	int tex[DIR_MAX][PST_MAX]; // 対応画像
 	float frameTime[PST_MAX];
 	int frameCount[DIR_MAX][PST_MAX]; // アニメーション何枚
@@ -263,7 +263,8 @@ struct Laser {
 	float startAngle;
 
 	//
-	int tex;
+	int tex1;
+	int tex2;
 	int frameCount;
 	float frameTime;
 	int currentFrame;
@@ -272,7 +273,8 @@ struct Laser {
 
 struct GroundSlam {
 	skillCharacter base;
-	int tex;
+	int tex1;
+	int tex2;
 	int frameCount;
 	float frameTime;
 	int currentFrame;
@@ -290,6 +292,7 @@ Player InitPlayer(float x, float y) {
 	p.base.vel = {0.0f, 0.0f};
 	p.base.dir = {1.0f, 0.0f};
 	p.base.hp = 5;
+	p.maxHP = p.base.hp;
 	p.base.damage = 10;
 	p.base.invincible_time = 60;
 	p.base.shootCooldown = 0;
@@ -333,8 +336,8 @@ Boss InitBoss(float x, float y) {
 	b.base.damage = 1;
 	b.base.invincible_time = 60;
 	b.base.shootCooldown = 90;
-	b.base.width = 128.0f;
-	b.base.height = 168.0f;
+	b.base.width = 96.0f;
+	b.base.height = 136.0f;
 	b.base.speed = 0;
 	b.base.dash_time = 0;
 	b.base.isDash = false;
@@ -421,7 +424,7 @@ ScatterShot InitScatterShot(Vector2 pos, Vector2 dir, BOSS_SKILL type) {
 }
 
 Laser InitLaser(Laser& l, Character& boss, BOSS_SKILL type, Character& player, BOSS_PHASE phase) {
-	l.base.pos = {boss.pos.x + boss.width * 0.5f, boss.pos.y + boss.height * 0.5f};
+	l.base.pos = {boss.pos.x + boss.width * 0.5f, boss.pos.y + boss.height * 0.75f};
 	l.base.vel = {0.0f, 0.0f};
 	l.base.type = type;
 	l.base.isAlive = false;
@@ -472,19 +475,17 @@ void InitgroundSlam(GroundSlam& g, Vector2 pos, BOSS_SKILL type, BOSS_PHASE phas
 	g.base.aliveTime = 60;
 
 	if (phase == PHASE_1) {
-		g.base.width = 160.0f;
-		g.base.height = 160.0f;
+		g.base.width = 144.0f;
+		g.base.height = 144.0f;
 		g.base.damege = 1;
 	} else {
-		g.base.width = 220.0f;
-		g.base.height = 220.0f;
+		g.base.width = 2.0f;
+		g.base.height = 2.0f;
 		g.base.damege = 1;
 	}
-
-	g.frameCount = 4;
-	g.frameTime = 0.1f;
 	g.currentFrame = 0;
 	g.animTimer = 0.0f;
+	
 }
 
 //===============================================================================
@@ -663,10 +664,6 @@ void UpdatePrt(Particle& prt) {
 
 	prt.vel.x *= 0.9f;
 	prt.vel.y *= 0.9f;
-
-	// if (prt.pos.x < 0 || prt.pos.x > 1280 || prt.pos.y < 0 || prt.pos.y > 720) {
-	//	prt.isAlive = false;
-	// }
 }
 
 // 生成条件
@@ -976,6 +973,30 @@ void UpdatePlayerDieAnim(Player& p, UI& dieBox, float deltaTime) {
 	}
 }
 
+void DrawPlayerHp(Player& player, float x, float y) {
+
+	int hp = player.base.hp;
+	int maxHp = player.maxHP;
+
+	
+	//int frameCount = maxHp + 1;
+	int frameW = 339;
+	int frameH = 96;
+
+	int frameIndex = maxHp - hp;
+
+	// 计算 UV
+	int u = 0;
+	int v = frameIndex * frameH;
+
+	int tex = player.hpTex;
+
+	Novice::DrawQuad((int)x, (int)y, (int)(x + frameW), (int)y, (int)x, (int)(y + frameH), (int)(x + frameW), (int)(y + frameH), u, v, frameW, frameH, tex, WHITE);
+}
+
+
+
+
 // bossアニメーション
 void UpdateBossAnim(Boss& b, float deltaTime) {
 
@@ -1003,19 +1024,17 @@ void UpdateBossHpAnim(UI& b, float deltaTime) {
 		b.animTimer = 0;
 		b.currentFrame++;
 		if (b.currentFrame >= frames) {
-			b.currentFrame = frames-1;
+			b.currentFrame = frames - 1;
 		}
 	}
 }
 
-//bossHP描画
-void DrawBossHp(Boss& b, UI& hpBox) { 
+// bossHP描画
+void DrawBossHp(Boss& b, UI& hpBox) {
 	float nowHp = (float)b.base.hp / (float)b.maxHP;
 	float nowHpW = (float)hpBox.w * nowHp;
-	Novice::DrawBox(hpBox.x + 9, hpBox.y+6, (int)nowHpW-18, hpBox.h-12, 0.0f, RED, kFillModeSolid);
+	Novice::DrawBox(hpBox.x + 9, hpBox.y + 6, (int)nowHpW - 18, hpBox.h - 12, 0.0f, RED, kFillModeSolid);
 }
-
-
 
 // boss死ぬアニメーション
 void UpdateBossDieAnim(Boss& b, UI& winBox, float deltaTime) {
@@ -1120,11 +1139,11 @@ void UpdateScatterShot(ScatterShot scatter[], int max) {
 }
 
 // 弾の更新
-void DrawScatterShot(ScatterShot scatter[], int max, float camX, float camY,int tex) {
+void DrawScatterShot(ScatterShot scatter[], int max, float camX, float camY, int tex) {
 	for (int i = 0; i < max; i++) {
 		if (!scatter[i].base.isAlive && !scatter[i].base.isWait)
 			continue;
-		
+
 		Vector2 p = {scatter[i].base.pos.x - camX, scatter[i].base.pos.y - camY};
 
 		if (scatter[i].base.isAlive) {
@@ -1153,6 +1172,8 @@ void UpdateLaser(Laser& laser) {
 		}
 		laser.base.isAlive = true;
 		laser.base.isWait = false;
+		laser.currentFrame = 0;
+		laser.animTimer = 0.0f;
 	}
 
 	if (!laser.base.isAlive) {
@@ -1223,12 +1244,13 @@ void DrawLaser(Laser& laser, float camX, float camY) {
 	Vector2 pRB = {baseR.x - nx, baseR.y - ny}; // 右下
 	Vector2 pRT = {baseR.x + nx, baseR.y + ny}; // 右上
 
-	int tex = laser.tex;
+	int tex = (boss_phase == PHASE_1) ? laser.tex1 : laser.tex2;
+
 	int frameW = boss_phase == PHASE_1 ? 500 : 750;
 	int frameH = boss_phase == PHASE_1 ? 50 : 80;
 
-	int u = frameW * laser.currentFrame;
-	int v = 0;
+	int u = 0;
+	int v = frameH * laser.currentFrame;
 
 	Novice::DrawQuad(
 	    (int)pLT.x, (int)pLT.y, // 左上
@@ -1291,6 +1313,8 @@ void UpdateGroundSlam(GroundSlam groundSlam[], int max) {
 			if (UpdateSkillWait(groundSlam[i].base)) {
 				groundSlam[i].base.isAlive = true;
 				groundSlam[i].base.isWait = false;
+				groundSlam[i].currentFrame = 0;
+				groundSlam[i].animTimer = 0.0f;
 			}
 
 			continue;
@@ -1350,9 +1374,9 @@ void DrawGroundSlamAnim(GroundSlam gs[], int max, float camX, float camY) {
 		if (!gs[i].base.isAlive && !gs[i].base.isWait)
 			continue;
 
-		int tex = gs[i].tex;
+		int tex = (boss_phase == PHASE_1) ? gs[i].tex1 : gs[i].tex2;
 
-		int frameSize = boss_phase == PHASE_1 ? 160 : 220;
+		int frameSize = boss_phase == PHASE_1 ? 144 : 216;
 		int u = frameSize * gs[i].currentFrame;
 		int v = 0;
 
@@ -1430,6 +1454,8 @@ void ALL(
 		groundSlam[i].base.isAlive = false;
 		groundSlam[i].base.isWait = false;
 		groundSlam[i].base.aliveTime = 0;
+		groundSlam[i].currentFrame = 0;
+		groundSlam[i].animTimer = 0;
 	}
 
 	for (int i = 0; i < rangeMax; i++) {
@@ -1470,7 +1496,9 @@ void ALL(
 	introTimer = 90;
 }
 // ui
-void UI_ALL(UI& startBtn, UI& manualBtn, UI& backBtn, UI& stopBtn, UI& menuBtn_countinou, UI& menuBtn_return, UI& menuBtn_return_title, UI& scoreBtn_return, UI& scoreBtn_return_title,UI&bossHp) {
+void UI_ALL(
+    UI& startBtn, UI& manualBtn, UI& backBtn, UI& stopBtn, UI& menuBtn_countinou, UI& menuBtn_return, UI& menuBtn_return_title, UI& scoreBtn_return, UI& scoreBtn_return_title, UI& bossHp,
+    Laser& laser) {
 
 	startBtn.isHover = false;
 	startBtn.isClicked = false;
@@ -1498,9 +1526,14 @@ void UI_ALL(UI& startBtn, UI& manualBtn, UI& backBtn, UI& stopBtn, UI& menuBtn_c
 
 	scoreBtn_return_title.isHover = false;
 	scoreBtn_return_title.isClicked = false;
-	
+
 	bossHp.animTimer = 0;
 	bossHp.currentFrame = 0;
+
+	laser.currentFrame = 0;
+	laser.animTimer = 0;
+
+	
 }
 
 // Windowsアプリでのエントリーポイント(main関数)
@@ -1568,7 +1601,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	UI backBtn{20, 20, 120, 50};
 
 	// ゲーム時、止まる
-	UI stopBtn{0, 0, 40, 40};
+	UI stopBtn{1240, 0, 40, 40};
 	// 止まるmenu
 	// 続行
 	UI menuBtn_countinou{540, 100, 200, 100};
@@ -1723,35 +1756,30 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	boss.frameCount[RIGHT][BOSS_ANIM_DIE] = 30;
 	boss.frameCount[LEFT][BOSS_ANIM_DIE] = 30;
 
-	//弾
+	// 弾
 	int bossBullet = Novice::LoadTexture("./imager/bossbullet.png");
 	int playerbullet = Novice::LoadTexture("./imager/playerBullet.png");
-
 
 	// スキル
 
 	for (int i = 0; i < groundSlamMax; i++) {
 		InitgroundSlam(groundSlam[i], {0, 0}, GROUNDSLAM, boss_phase);
 
-		if (boss_phase == PHASE_1) {
-			groundSlam[i].tex = Novice::LoadTexture("./imager/groundSlam1.png");
-		} else if (boss_phase == PHASE_2) {
-			groundSlam[i].tex = Novice::LoadTexture("./imager/groundSlam2.png");
-		}
+		groundSlam[i].tex1 = Novice::LoadTexture("./imager/ground.png");
 
-		groundSlam[i].frameCount = 4;
-		groundSlam[i].frameTime = 0.1f;
-		groundSlam[i].currentFrame = 0;
-		groundSlam[i].animTimer = 0.0f;
+		groundSlam[i].tex2 = Novice::LoadTexture("./imager/ground2.png");
+
+	groundSlam[i].frameCount = 25;
+	groundSlam[i].frameTime = 0.05f;
+	groundSlam[i].currentFrame = 0;
+	groundSlam[i].animTimer = 0.0f;
 	}
 
-	if (boss_phase == PHASE_1) {
-		laser.tex = Novice::LoadTexture("./imager/laser1.png");
-	} else if (boss_phase == PHASE_2) {
-		laser.tex = Novice::LoadTexture("./imager/laser2.png");
-	}
-	laser.frameCount = 4;
-	laser.frameTime = 0.1f;
+	laser.tex1 = Novice::LoadTexture("./imager/laser.png");
+	laser.tex2 = Novice::LoadTexture("./imager/laser2.png");
+
+	laser.frameCount = 23;
+	laser.frameTime = 0.065f;
 	laser.currentFrame = 0;
 	laser.animTimer = 0.0f;
 
@@ -1769,13 +1797,20 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	int stopBg = Novice::LoadTexture("./imager/stopBg.png");
 
-	//boss,HP
-	bossHp.tex= Novice::LoadTexture("./imager/boss_hp_gif.png");
+	int particle = Novice::LoadTexture("./imager/particle.png");
+
+	// boss,HP
+	bossHp.tex = Novice::LoadTexture("./imager/boss_hp_gif.png");
 	int bossHpImager = Novice::LoadTexture("./imager/boss_hp.png");
+	if (laser.base.isAlive) {
+	}
 	bossHp.animTimer = 0.0f;
 	bossHp.currentFrame = 0;
 	bossHp.frameTime = 0.1f;
 	bossHp.frameCount = 14;
+	//player,Hp
+	player.hpTex = Novice::LoadTexture("./imager/playerHp.png");
+
 
 	// ゲーム止まる
 	stopBtn.tex1 = Novice::LoadTexture("./imager/ui_stop_on.png");
@@ -1818,6 +1853,19 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	int fight2Bgm = Novice::LoadAudio("./Sounds/fight2.wav");
 	int fight2Handle = -1;
+
+	int boss_introBgm = Novice::LoadAudio("./Sounds/boss_intro.wav");
+	int boss_introHandle = -1;
+
+	int laserBgm  = Novice::LoadAudio("./Sounds/laser.wav");
+	int laserHandle = -1;
+
+	int groundBgm = Novice::LoadAudio("./Sounds/ground.wav");
+	int groundHandle = -1;
+
+	int playerHitBgm = Novice::LoadAudio("./Sounds/playerHit.wav");
+	int playerHitHandle = -1;
+
 
 	// キー入力結果を受け取る箱
 	char keys[256] = {0};
@@ -1868,7 +1916,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Novice::StopAudio(winHandle);
 			Novice::StopAudio(dieHandle);
 			if (!Novice::IsPlayingAudio(titleHandle)) {
-				titleHandle = Novice::PlayAudio(titleBgm, true, 1.0f);
+				titleHandle = Novice::PlayAudio(titleBgm, true, 0.3f);
 			}
 			UpdateButton(startBtn);
 			UpdateButton(manualBtn);
@@ -1905,7 +1953,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				loadingTimer = 150;
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
 				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
-				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title,bossHp);
+				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp, laser);
 
 				game_state = FIGHT;
 			}
@@ -1921,7 +1969,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Novice::StopAudio(dieHandle);
 			Novice::StopAudio(titleHandle);
 			if (!Novice::IsPlayingAudio(fight2Handle)) {
-				fight2Handle = Novice::PlayAudio(fight2Bgm, true, 0.7f);
+				fight2Handle = Novice::PlayAudio(fight2Bgm, true, 0.3f);
 			}
 
 			if (boss.anim != prevAnim) {
@@ -2034,14 +2082,14 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 					if (playerCenterY + player.base.height > 25 * tile) {
 						Novice::StopAudio(fight2Handle);
 						if (!Novice::IsPlayingAudio(fightHandle)) {
-							fightHandle = Novice::PlayAudio(fightBgm, true, 1.0f);
+							fightHandle = Novice::PlayAudio(fightBgm, true, 0.4f);
 						}
 					}
 				}
 
 				if (!bossRoomEntered && playerCenterY + player.base.height < 25 * tile) {
 					Novice::StopAudio(fightHandle);
-				
+
 					bossRoomEntered = true;
 					game_state = INTRO;
 					introTimer = 90;
@@ -2153,10 +2201,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			if (boss.base.hp <= boss.maxHP / 2 && boss_phase == PHASE_1) {
 				boss_phase = PHASE_2;
 				boss.skillCooldown = 120;
-				// ApplyCameraShake(camera, 10, 60);
 			}
 
-		
 			switch (boss_start) {
 
 			case IDLE: {
@@ -2293,6 +2339,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 					if (!groundSkillStarted) {
 						SpawGroundSlam(groundSlam, groundSlamCount, map, tile);
 						groundSkillStarted = true;
+						
 					}
 
 					bool allDone = true;
@@ -2390,6 +2437,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			// 弾発射
 			UpdateScatterShot(scatter, scatterMax);
 
+		
+			
+
 			for (int i = 0; i < scatterMax; i++) {
 				if (scatter[i].base.isAlive && isSkillHit(scatter[i].base, player.base)) {
 					ApplyDamage(player.base, scatter[i].base.damege, true);
@@ -2401,6 +2451,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			//
 			for (int i = 0; i < groundSlamMax; i++) {
 				if (groundSlam[i].base.isAlive) {
+					if (!Novice::IsPlayingAudio(groundHandle)) {
+						groundHandle = Novice::PlayAudio(groundBgm, false, 0.6f);
+					}
 					if (isSkillHit(groundSlam[i].base, player.base)) {
 						ApplyDamage(player.base, groundSlam[i].base.damege, true);
 						SpawPrt(player.base.pos, PRT_BLODD, blood, prtmax);
@@ -2418,6 +2471,11 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			}
 
 			if (laser.base.isAlive) {
+				if (!Novice::IsPlayingAudio(laserHandle)) {
+					laserHandle = Novice::PlayAudio(laserBgm, false, 0.6f);
+				}
+				
+
 				float BX = laser.base.pos.x + laser.base.width * 0.0f;
 				float BY = laser.base.pos.y + laser.base.height * 0.5f;
 
@@ -2442,6 +2500,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 					ApplyCameraShake(camera, 3, 8);
 					SpawPrt(player.base.pos, PRT_BLODD, blood, prtmax);
 				}
+			} else {
+				if (Novice::IsPlayingAudio(laserHandle)) {
+					Novice::StopAudio(laserHandle);
+				}
 			}
 
 			break;
@@ -2449,6 +2511,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		case INTRO: {
 
 			Novice::StopAudio(fight2Handle);
+
+			if (!Novice::IsPlayingAudio(boss_introHandle)) {
+				boss_introHandle = Novice::PlayAudio(boss_introBgm, false, 1.0f);
+			}
 			float deltaTime = 1.0f / 60.0f;
 
 			boss.anim = BOSS_ANIM_INTRO;
@@ -2469,6 +2535,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			introTimer--;
 			if (introTimer <= 0) {
 				game_state = FIGHT;
+				Novice::StopAudio(boss_introHandle);
 			}
 
 			break;
@@ -2478,7 +2545,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			float deltaTime = 1.0f / 60.0f;
 			player.state = PST_HIT;
 			UpdatePlayerAnim(player, deltaTime);
-
+			if (!Novice::IsPlayingAudio(playerHitHandle)) {
+				playerHitHandle = Novice::PlayAudio(playerHitBgm, false, 0.7f);
+			}
 			hitTimer--;
 			if (hitTimer <= 0) {
 				game_state = FIGHT;
@@ -2491,7 +2560,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		case WIN: {
 			Novice::StopAudio(fight2Handle);
 			if (!winPlay) {
-				winHandle = Novice::PlayAudio(winBgm, false, 1.0f);
+				winHandle = Novice::PlayAudio(winBgm, false, 0.3f);
 				winPlay = true;
 			}
 
@@ -2508,7 +2577,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			if (scoreBtn_return.isClicked) {
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
 				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
-				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp);
+				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp, laser);
 
 				game_state = FIGHT;
 				Novice::StopAudio(winHandle);
@@ -2517,7 +2586,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			if (scoreBtn_return_title.isClicked) {
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
 				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
-				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp);
+				UI_ALL(
+				    startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp, laser);
 
 				game_state = START;
 				Novice::StopAudio(winHandle);
@@ -2531,7 +2601,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Novice::StopAudio(fight2Handle);
 
 			if (!dieplay) {
-				dieHandle = Novice::PlayAudio(dieBgm, false, 1.0f);
+				dieHandle = Novice::PlayAudio(dieBgm, false, 0.2f);
 				dieplay = true;
 			}
 
@@ -2548,7 +2618,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			if (scoreBtn_return.isClicked) {
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
 				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
-				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp);
+				UI_ALL(
+				    startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp, laser);
 
 				game_state = FIGHT;
 			}
@@ -2556,7 +2627,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			if (scoreBtn_return_title.isClicked) {
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
 				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
-				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp);
+				UI_ALL(
+				    startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp, laser);
 
 				game_state = START;
 			}
@@ -2580,14 +2652,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			if (menuBtn_return.isClicked) {
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
 				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
-				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp);
+				UI_ALL(
+				    startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp, laser);
 				game_state = FIGHT;
 			}
 			UpdateButton(menuBtn_return_title);
 			if (menuBtn_return_title.isClicked) {
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
 				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
-				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp);
+				UI_ALL(
+				    startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp, laser);
 				game_state = START;
 			}
 		}
@@ -2637,7 +2711,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Novice::DrawSprite(18 * tile - (int)camX, 25 * tile - (int)camY, bg2, 1, 1, 0.0f, WHITE);
 			Novice::DrawSprite(8 * tile - (int)camX, 38 * tile - (int)camY, bg3, 1, 1, 0.0f, WHITE);
 
-			
 			// 弾の画像
 			for (int i = 0; i < rangeMax; i++) {
 				if (player_range[i].isAlive) {
@@ -2651,13 +2724,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			// 地面攻撃
 			DrawGroundSlamAnim(groundSlam, groundSlamMax, camX, camY);
 			//  弾発射
-			DrawScatterShot(scatter, scatterMax, camX, camY,bossBullet);
-			// 血
-			for (int i = 0; i < prtmax; i++) {
-				if (blood[i].isAlive) {
-					Novice::DrawBox((int)blood[i].pos.x - (int)camX, (int)blood[i].pos.y - (int)camY, (int)blood[i].width, (int)blood[i].height, 0.0f, RED, kFillModeSolid);
-				}
-			}
+			DrawScatterShot(scatter, scatterMax, camX, camY, bossBullet);
 
 			for (int y = 0; y < 45; y++) {
 				for (int x = 0; x < 40; x++) {
@@ -2691,7 +2758,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				int drawX = (int)(player.base.pos.x - camX);
 				int drawY = (int)(player.base.pos.y - camY);
 
-				
 				Novice::DrawQuad(
 				    drawX - 16, drawY - 15,                   // 左上 LT
 				    drawX + frameW - 16, drawY - 15,          // 右上 RT
@@ -2710,19 +2776,28 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 				int drawX = (int)(boss.base.pos.x - camX);
 				int drawY = (int)(boss.base.pos.y - camY);
-
 				Novice::DrawQuad(
-				    drawX, drawY,                   // 左上 LT
-				    drawX + frameW, drawY,          // 右上 RT
-				    drawX, drawY + frameH,          // 左下 LB
-				    drawX + frameW, drawY + frameH, // 右下 RB
+				    drawX - 16, drawY - 16,                   // 左上 LT
+				    drawX + frameW - 16, drawY - 16,          // 右上 RT
+				    drawX - 16, drawY + frameH - 16,          // 左下 LB
+				    drawX + frameW - 16, drawY + frameH - 16, // 右下 RB
 				    u, v, frameW, frameH, tex, WHITE);
 			}
 
-			if (bossRoomEntered&&boss.base.isAlive) {
+			// 血
+			for (int i = 0; i < prtmax; i++) {
+				if (blood[i].isAlive) {
+					Novice::DrawSprite((int)blood[i].pos.x - (int)camX, (int)blood[i].pos.y - (int)camY, particle, 1, 1, 0.0f, WHITE);
+				}
+			}
+
+			if (bossRoomEntered && boss.base.isAlive) {
 				DrawBossHp(boss, bossHp);
 				Novice::DrawSprite(bossHp.x, bossHp.y, bossHpImager, 1, 1, 0.0f, WHITE);
+				Novice::DrawSprite(bossHp.x, bossHp.y, bossHpImager, 1, 1, 0.0f, WHITE);
 			}
+
+			DrawPlayerHp(player, 0, 0);
 			DrawButton(stopBtn);
 			break;
 		}
@@ -2781,11 +2856,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				int drawX = (int)(boss.base.pos.x - camX);
 				int drawY = (int)(boss.base.pos.y - camY);
 
+				// Novice::DrawBox(drawX, drawY, (int)boss.base.width, (int)boss.base.height, 0.0f, WHITE, kFillModeSolid);
 				Novice::DrawQuad(
-				    drawX, drawY,                   // 左上 LT
-				    drawX + frameW, drawY,          // 右上 RT
-				    drawX, drawY + frameH,          // 左下 LB
-				    drawX + frameW, drawY + frameH, // 右下 RB
+				    drawX - 16, drawY - 16,                   // 左上 LT
+				    drawX + frameW - 16, drawY - 16,          // 右上 RT
+				    drawX - 16, drawY + frameH - 16,          // 左下 LB
+				    drawX + frameW - 16, drawY + frameH - 16, // 右下 RB
 				    u, v, frameW, frameH, tex, WHITE);
 			}
 
@@ -2835,7 +2911,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Novice::DrawSprite(0 - (int)camX, 0 - (int)camY, bg1, 1, 1, 0.0f, WHITE);
 			Novice::DrawSprite(18 * tile - (int)camX, 25 * tile - (int)camY, bg2, 1, 1, 0.0f, WHITE);
 			Novice::DrawSprite(8 * tile - (int)camX, 38 * tile - (int)camY, bg3, 1, 1, 0.0f, WHITE);
-			
 
 			// 弾の画像
 			for (int i = 0; i < rangeMax; i++) {
@@ -2852,12 +2927,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			DrawGroundSlamAnim(groundSlam, groundSlamMax, camX, camY);
 			//  弾発射
 			DrawScatterShot(scatter, scatterMax, camX, camY, bossBullet);
-			// 血
-			for (int i = 0; i < prtmax; i++) {
-				if (blood[i].isAlive) {
-					Novice::DrawBox((int)blood[i].pos.x - (int)camX, (int)blood[i].pos.y - (int)camY, (int)blood[i].width, (int)blood[i].height, 0.0f, RED, kFillModeSolid);
-				}
-			}
 
 			for (int y = 0; y < 45; y++) {
 				for (int x = 0; x < 40; x++) {
@@ -2878,24 +2947,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			}
 
 			{
-				int tex = boss.tex[boss.dir][boss.anim];
-				int frameW = 128;
-				int frameH = 168;
-
-				int u = frameW * boss.currentFrame;
-				int v = 0;
-
-				int drawX = (int)(boss.base.pos.x - camX);
-				int drawY = (int)(boss.base.pos.y - camY);
-
-				Novice::DrawQuad(
-				    drawX, drawY,                   // 左上 LT
-				    drawX + frameW, drawY,          // 右上 RT
-				    drawX, drawY + frameH,          // 左下 LB
-				    drawX + frameW, drawY + frameH, // 右下 RB
-				    u, v, frameW, frameH, tex, WHITE);
-			}
-			{
 				// playerの画像
 				int tex = player.tex[player.dir][player.state];
 				int frameW = 64;
@@ -2913,6 +2964,33 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				    drawX - 16, drawY + frameH - 15,          // 左下 LB
 				    drawX + frameW - 16, drawY + frameH - 15, // 右下 RB
 				    u, v, frameW, frameH, tex, WHITE);
+			}
+
+			{
+				int tex = boss.tex[boss.dir][boss.anim];
+				int frameW = 128;
+				int frameH = 168;
+
+				int u = frameW * boss.currentFrame;
+				int v = 0;
+
+				int drawX = (int)(boss.base.pos.x - camX);
+				int drawY = (int)(boss.base.pos.y - camY);
+
+				// Novice::DrawBox(drawX, drawY, (int)boss.base.width, (int)boss.base.height, 0.0f, WHITE, kFillModeSolid);
+				Novice::DrawQuad(
+				    drawX - 16, drawY - 16,                   // 左上 LT
+				    drawX + frameW - 16, drawY - 16,          // 右上 RT
+				    drawX - 16, drawY + frameH - 16,          // 左下 LB
+				    drawX + frameW - 16, drawY + frameH - 16, // 右下 RB
+				    u, v, frameW, frameH, tex, WHITE);
+			}
+
+			// 血
+			for (int i = 0; i < prtmax; i++) {
+				if (blood[i].isAlive) {
+					Novice::DrawBox((int)blood[i].pos.x - (int)camX, (int)blood[i].pos.y - (int)camY, (int)blood[i].width, (int)blood[i].height, 0.0f, RED, kFillModeSolid);
+				}
 			}
 
 			Novice::DrawSprite(0, 0, stopBg, 1, 1, 0.0f, WHITE);
@@ -2929,7 +3007,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Novice::DrawSprite(18 * tile - (int)camX, 25 * tile - (int)camY, bg2, 1, 1, 0.0f, WHITE);
 			Novice::DrawSprite(8 * tile - (int)camX, 38 * tile - (int)camY, bg3, 1, 1, 0.0f, WHITE);
 
-			
 			for (int y = 0; y < 45; y++) {
 				for (int x = 0; x < 40; x++) {
 					if (map[y][x] == 2) {
@@ -2970,7 +3047,6 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			}
 
 			{
-				// bossの画像
 				int tex = boss.tex[boss.dir][boss.anim];
 				int frameW = 128;
 				int frameH = 168;
@@ -2981,16 +3057,17 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				int drawX = (int)(boss.base.pos.x - camX);
 				int drawY = (int)(boss.base.pos.y - camY);
 
+				// Novice::DrawBox(drawX, drawY, (int)boss.base.width, (int)boss.base.height, 0.0f, WHITE, kFillModeSolid);
 				Novice::DrawQuad(
-				    drawX, drawY,                   // 左上 LT
-				    drawX + frameW, drawY,          // 右上 RT
-				    drawX, drawY + frameH,          // 左下 LB
-				    drawX + frameW, drawY + frameH, // 右下 RB
+				    drawX - 16, drawY - 16,                   // 左上 LT
+				    drawX + frameW - 16, drawY - 16,          // 右上 RT
+				    drawX - 16, drawY + frameH - 16,          // 左下 LB
+				    drawX + frameW - 16, drawY + frameH - 16, // 右下 RB
 				    u, v, frameW, frameH, tex, WHITE);
 			}
 
 			{
-				//boss Hp
+				// boss Hp
 				int tex = bossHp.tex;
 				int frameW = 1098;
 				int frameH = 36;
@@ -3003,10 +3080,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 				// Novice::DrawBox(drawX, drawY, (int)player.base.width, (int)player.base.height, 0.0f, WHITE, kFillModeSolid);
 				Novice::DrawQuad(
-				    drawX , drawY ,                   // 左上 LT
-				    drawX + frameW, drawY ,          // 右上 RT
-				    drawX , drawY + frameH,          // 左下 LB
-				    drawX + frameW , drawY + frameH , // 右下 RB
+				    drawX, drawY,                   // 左上 LT
+				    drawX + frameW, drawY,          // 右上 RT
+				    drawX, drawY + frameH,          // 左下 LB
+				    drawX + frameW, drawY + frameH, // 右下 RB
 				    u, v, frameW, frameH, tex, WHITE);
 			}
 
