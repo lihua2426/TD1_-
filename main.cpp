@@ -70,6 +70,7 @@ enum BossAnim {
 	BOSS_ANIM_GROUNDSLAM, // 地面攻撃
 	BOSS_ANIM_CHARGE,     // ダッシュ
 	BOSS_ANIM_INTRO,
+	BOSS_ANIM_DIE,
 	BOSS_ANIM_MAX
 };
 
@@ -77,7 +78,7 @@ enum BossAnim {
 
 enum PlayerDir { DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_MAX };
 
-enum PlayerState { PST_IDLE, PST_RUN, PST_ATTACK, PST_DASH, PST_HIT, PST_MAX };
+enum PlayerState { PST_IDLE, PST_RUN, PST_ATTACK, PST_DASH, PST_HIT, PST_DIE, PST_MAX };
 
 //================================================================================
 //
@@ -117,10 +118,20 @@ struct Camera {
 // UI宣言
 struct UI {
 	int x, y, w, h;
-	const char* label;
+	int tex1;
+	int tex2;
 	bool isHover;
 	bool isClicked;
+	bool winEnd;
+	bool dieEnd;
+	int tex; // 対応画像
+	float frameTime;
+	int frameCount; // アニメーション何枚
+	int currentFrame;                 // 今の画像何枚
+	float animTimer;
 };
+
+
 
 // playerとbossの共有宣言
 struct Character {
@@ -157,6 +168,7 @@ struct Player {
 	int frameCount[DIR_MAX][PST_MAX]; // アニメーション何枚
 	int currentFrame;                 // 今の画像何枚
 	float animTimer;
+	bool animEnd;
 	PlayerDir dir;
 	PlayerState state;
 };
@@ -175,6 +187,7 @@ struct Boss {
 	int frameCount[DIR_MAX][BOSS_ANIM_MAX];
 	int currentFrame;
 	float animTimer;
+	bool animEnd;
 	BossDir dir;
 	BossAnim anim;
 };
@@ -248,14 +261,22 @@ struct Laser {
 	float rotateSpeed;
 	float rotateLimit;
 	float startAngle;
+
+	//
+	int tex;
+	int frameCount;
+	float frameTime;
+	int currentFrame;
+	float animTimer;
 };
 
 struct GroundSlam {
 	skillCharacter base;
-};
-
-struct EyeLaser {
-	skillCharacter base;
+	int tex;
+	int frameCount;
+	float frameTime;
+	int currentFrame;
+	float animTimer;
 };
 
 //=================================================================
@@ -268,7 +289,7 @@ Player InitPlayer(float x, float y) {
 	p.base.pos = {x, y};
 	p.base.vel = {0.0f, 0.0f};
 	p.base.dir = {1.0f, 0.0f};
-	p.base.hp = 100;
+	p.base.hp = 5;
 	p.base.damage = 10;
 	p.base.invincible_time = 60;
 	p.base.shootCooldown = 0;
@@ -290,13 +311,14 @@ Player InitPlayer(float x, float y) {
 	p.state = PST_IDLE;
 	p.dir = DIR_RIGHT;
 	p.currentFrame = 0;
+	p.animEnd = false;
 	p.animTimer = 0.0f;
 
 	p.frameTime[PST_IDLE] = 0.25f;
 	p.frameTime[PST_RUN] = 0.12f;
 	p.frameTime[PST_ATTACK] = 0.08f;
 	p.frameTime[PST_DASH] = 0.05f;
-	// p.frameTime[PST_HIT] = 0.05f;
+	p.frameTime[PST_DIE] = 0.1f;
 
 	return p;
 }
@@ -307,8 +329,8 @@ Boss InitBoss(float x, float y) {
 	b.base.pos = {x, y};
 	b.base.vel = {0.0f, 0.0f};
 	b.base.dir = {1.0f, 0.0f};
-	b.base.hp = 300;
-	b.base.damage = 10;
+	b.base.hp = 1000;
+	b.base.damage = 1;
 	b.base.invincible_time = 60;
 	b.base.shootCooldown = 90;
 	b.base.width = 128.0f;
@@ -329,14 +351,16 @@ Boss InitBoss(float x, float y) {
 	b.dir = RIGHT;
 	b.currentFrame = 0;
 	b.animTimer = 0.0f;
+	b.animEnd = false;
 	b.anim = BOSS_ANIM_IDLE;
 
 	b.frameTime[BOSS_ANIM_IDLE] = 0.25f;
 	b.frameTime[BOSS_ANIM_SHOOT] = 0.12f;
-	b.frameTime[BOSS_ANIM_GROUNDSLAM] = 0.11f;
-	b.frameTime[BOSS_ANIM_LASER] = 0.05f;
-	b.frameTime[BOSS_ANIM_CHARGE] = 0.1f;
-	b.frameTime[BOSS_ANIM_INTRO] = 0.09f;
+	b.frameTime[BOSS_ANIM_GROUNDSLAM] = 0.12f;
+	b.frameTime[BOSS_ANIM_LASER] = 0.1f;
+	b.frameTime[BOSS_ANIM_CHARGE] = 0.09f;
+	b.frameTime[BOSS_ANIM_INTRO] = 0.08f;
+	b.frameTime[BOSS_ANIM_DIE] = 0.08f;
 
 	return b;
 }
@@ -392,12 +416,11 @@ ScatterShot InitScatterShot(Vector2 pos, Vector2 dir, BOSS_SKILL type) {
 	s.base.isWait = false;
 	s.base.waitTime = 20;
 	s.base.aliveTime = 120;
-	s.base.damege = 8;
+	s.base.damege = 1;
 	return s;
 }
 
-Laser InitLaser(Character& boss, BOSS_SKILL type, Character& player, BOSS_PHASE phase) {
-	Laser l{};
+Laser InitLaser(Laser& l, Character& boss, BOSS_SKILL type, Character& player, BOSS_PHASE phase) {
 	l.base.pos = {boss.pos.x + boss.width * 0.5f, boss.pos.y + boss.height * 0.5f};
 	l.base.vel = {0.0f, 0.0f};
 	l.base.type = type;
@@ -422,7 +445,7 @@ Laser InitLaser(Character& boss, BOSS_SKILL type, Character& player, BOSS_PHASE 
 		l.rotateSpeed = dirY * 0.02f;
 		l.rotateLimit = 0.6f;
 		l.base.aliveTime = 90;
-		l.base.damege = 5;
+		l.base.damege = 1;
 		l.base.waitTime = 60;
 	} else { // PHASE 2
 		l.base.width = 750.0f;
@@ -431,34 +454,37 @@ Laser InitLaser(Character& boss, BOSS_SKILL type, Character& player, BOSS_PHASE 
 		l.rotateSpeed = dirY * 0.015f;
 		l.rotateLimit = 3.14159f * 2.0f;
 		l.base.aliveTime = 90;
-		l.base.damege = 10;
+		l.base.damege = 1;
 
 		l.base.waitTime = 60;
 	}
 
 	return l;
 }
-GroundSlam InitgroundSlam(Vector2 pos, BOSS_SKILL type, BOSS_PHASE phase) {
-	GroundSlam g{};
+void InitgroundSlam(GroundSlam& g, Vector2 pos, BOSS_SKILL type, BOSS_PHASE phase) {
 	g.base.pos = pos;
 	g.base.vel = {0.0f, 0.0f};
 	g.base.type = type;
+
 	g.base.isAlive = false;
 	g.base.isWait = false;
-	g.base.waitTime = 30;
+	g.base.waitTime = 40;
+	g.base.aliveTime = 60;
 
 	if (phase == PHASE_1) {
 		g.base.width = 160.0f;
 		g.base.height = 160.0f;
-		g.base.damege = 5;
-		g.base.aliveTime = 60;
-	} else { // PHASE 2
+		g.base.damege = 1;
+	} else {
 		g.base.width = 220.0f;
 		g.base.height = 220.0f;
-		g.base.damege = 12;
-		g.base.aliveTime = 60;
+		g.base.damege = 1;
 	}
-	return g;
+
+	g.frameCount = 4;
+	g.frameTime = 0.1f;
+	g.currentFrame = 0;
+	g.animTimer = 0.0f;
 }
 
 //===============================================================================
@@ -492,7 +518,7 @@ int map[45][40] = {
     {4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 5},
     {4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 5},
     {4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 5},
-    {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 7, 1, 1, 1, 1, 6, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2},
+    {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 7, 1, 1, 1, 1, 6, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}, //
     {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 5, 1, 1, 1, 1, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3},
     {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 5, 1, 1, 1, 1, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3},
     {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 5, 1, 1, 1, 1, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3},
@@ -911,10 +937,9 @@ void UpdateButton(UI& box) {
 }
 
 // BOXを描画する
-void DrawButton(const UI& box) {
-	int color = box.isHover ? BLACK : GREEN;
-	Novice::DrawBox(box.x, box.y, box.w, box.h, 0.0f, color, kFillModeSolid);
-	Novice::ScreenPrintf(box.x + box.w / 2 - 30, box.y + box.h / 2 - 5, box.label);
+void DrawButton(UI& box) {
+	int tex = box.isHover ? box.tex1 : box.tex2;
+	Novice::DrawSprite(box.x, box.y, tex, 1, 1, 0.0f, WHITE);
 }
 
 // playerのアニメーション
@@ -933,7 +958,25 @@ void UpdatePlayerAnim(Player& p, float deltaTime) {
 	}
 }
 
-// bossのアニメーション
+// player死ぬアニメーショ
+void UpdatePlayerDieAnim(Player& p, UI& dieBox, float deltaTime) {
+
+	p.animTimer += deltaTime;
+
+	int frames = p.frameCount[p.dir][p.state];
+	float speed = p.frameTime[p.state];
+	if (p.animTimer >= speed) {
+		p.animTimer = 0;
+		p.currentFrame++;
+		if (p.currentFrame >= frames) {
+			p.currentFrame = 10;
+			p.animEnd = true;
+			dieBox.winEnd = true;
+		}
+	}
+}
+
+// bossアニメーション
 void UpdateBossAnim(Boss& b, float deltaTime) {
 
 	b.animTimer += deltaTime;
@@ -945,6 +988,49 @@ void UpdateBossAnim(Boss& b, float deltaTime) {
 		b.currentFrame++;
 		if (b.currentFrame >= frames) {
 			b.currentFrame = 0;
+		}
+	}
+}
+
+// bossHP出てくるアニメーション
+void UpdateBossHpAnim(UI& b, float deltaTime) {
+
+	b.animTimer += deltaTime;
+
+	int frames = b.frameCount;
+	float speed = b.frameTime;
+	if (b.animTimer >= speed) {
+		b.animTimer = 0;
+		b.currentFrame++;
+		if (b.currentFrame >= frames) {
+			b.currentFrame = frames-1;
+		}
+	}
+}
+
+//bossHP描画
+void DrawBossHp(Boss& b, UI& hpBox) { 
+	float nowHp = (float)b.base.hp / (float)b.maxHP;
+	float nowHpW = (float)hpBox.w * nowHp;
+	Novice::DrawBox(hpBox.x + 9, hpBox.y+6, (int)nowHpW-18, hpBox.h-12, 0.0f, RED, kFillModeSolid);
+}
+
+
+
+// boss死ぬアニメーション
+void UpdateBossDieAnim(Boss& b, UI& winBox, float deltaTime) {
+
+	b.animTimer += deltaTime;
+
+	int frames = b.frameCount[b.dir][b.anim];
+	float speed = b.frameTime[b.anim];
+	if (b.animTimer >= speed) {
+		b.animTimer = 0;
+		b.currentFrame++;
+		if (b.currentFrame >= frames) {
+			b.currentFrame = 29;
+			b.animEnd = true;
+			winBox.dieEnd = true;
 		}
 	}
 }
@@ -1034,17 +1120,15 @@ void UpdateScatterShot(ScatterShot scatter[], int max) {
 }
 
 // 弾の更新
-void DrawScatterShot(ScatterShot scatter[], int max, float camX, float camY) {
+void DrawScatterShot(ScatterShot scatter[], int max, float camX, float camY,int tex) {
 	for (int i = 0; i < max; i++) {
 		if (!scatter[i].base.isAlive && !scatter[i].base.isWait)
 			continue;
-
+		
 		Vector2 p = {scatter[i].base.pos.x - camX, scatter[i].base.pos.y - camY};
 
-		if (scatter[i].base.isWait) {
-			Novice::DrawBox((int)p.x, (int)p.y, (int)scatter[i].base.width, (int)scatter[i].base.height, 0.0f, RED, kFillModeWireFrame);
-		} else {
-			Novice::DrawBox((int)p.x, (int)p.y, (int)scatter[i].base.width, (int)scatter[i].base.height, 0.0f, RED, kFillModeSolid);
+		if (scatter[i].base.isAlive) {
+			Novice::DrawSprite((int)scatter[i].base.pos.x - (int)camX, (int)scatter[i].base.pos.y - (int)camY, tex, 1, 1, 0.0f, WHITE);
 		}
 	}
 }
@@ -1053,7 +1137,7 @@ void DrawScatterShot(ScatterShot scatter[], int max, float camX, float camY) {
 // レーザーの生成
 void SpawLaser(Laser& laser, Character& boss, Character& player) {
 	if (!laser.base.isAlive && !laser.base.isWait) {
-		laser = InitLaser(boss, LASER, player, boss_phase);
+		InitLaser(laser, boss, LASER, player, boss_phase);
 		// laser.base.isAlive = false;
 		laser.base.isWait = true;
 	}
@@ -1087,8 +1171,24 @@ void UpdateLaser(Laser& laser) {
 	}
 }
 
+// レーザのアニメーション
+void UpdateLaserAnim(Laser& l, float deltaTime) {
+
+	if (!l.base.isAlive)
+		return;
+
+	l.animTimer += deltaTime;
+	if (l.animTimer >= l.frameTime) {
+		l.animTimer = 0.0f;
+		l.currentFrame++;
+		if (l.currentFrame >= l.frameCount) {
+			l.currentFrame = 0;
+		}
+	}
+}
+
 // レーザーの描画
-void DrawLaser(Laser& laser, float camX, float camY, int tex) {
+void DrawLaser(Laser& laser, float camX, float camY) {
 	if (!laser.base.isAlive && !laser.base.isWait)
 		return;
 
@@ -1123,40 +1223,59 @@ void DrawLaser(Laser& laser, float camX, float camY, int tex) {
 	Vector2 pRB = {baseR.x - nx, baseR.y - ny}; // 右下
 	Vector2 pRT = {baseR.x + nx, baseR.y + ny}; // 右上
 
+	int tex = laser.tex;
+	int frameW = boss_phase == PHASE_1 ? 500 : 750;
+	int frameH = boss_phase == PHASE_1 ? 50 : 80;
+
+	int u = frameW * laser.currentFrame;
+	int v = 0;
+
 	Novice::DrawQuad(
 	    (int)pLT.x, (int)pLT.y, // 左上
 	    (int)pRT.x, (int)pRT.y, // 右上
 	    (int)pLB.x, (int)pLB.y, // 左下
 	    (int)pRB.x, (int)pRB.y, // 右下
-	    0, 0, (int)laser.base.width, (int)laser.base.height, tex, WHITE);
+	    u, v, frameW, frameH, tex, WHITE);
 }
 
 // 地面攻撃生成
 void SpawGroundSlam(GroundSlam groundSlam[], int max, int Map[45][40], int Tile) {
 
+	int slamSize = (boss_phase == PHASE_1) ? 160 : 220;
+	int radius = slamSize;
+
+	int mapWidth = 40 * Tile;
+	int mapHeight = 26 * Tile;
+
 	for (int i = 0; i < max; i++) {
+
 		if (!groundSlam[i].base.isAlive && !groundSlam[i].base.isWait) {
 
 			while (true) {
 
 				int tx = rand() % 40;
-				int ty = rand() % 45;
+				int ty = rand() % 26;
 
-				if (tx <= 5 || tx >= 44 || ty <= 5 || ty >= 19) {
+				float cx = float(tx * Tile + Tile);
+				float cy = float(ty * Tile + Tile);
+
+				if (cx < radius) {
+					continue;
+				}
+				if (cy < radius) {
+					continue;
+				}
+				if (cx > mapWidth - radius) {
+					continue;
+				}
+				if (cy > mapHeight - radius) {
 					continue;
 				}
 
-				if (Map[ty][tx] == 1 && Map[ty + 3][tx + 3] == 1 && Map[ty - 3][tx - 3] == 1) {
-
-					Vector2 v{};
-
-					v.x = (float)(tx * Tile + Tile);
-					v.y = (float)(ty * Tile + Tile);
-
-					groundSlam[i] = InitgroundSlam(v, GROUNDSLAM, boss_phase);
-
+				if (Map[ty][tx] == 1) {
+					Vector2 v{cx, cy};
+					InitgroundSlam(groundSlam[i], v, GROUNDSLAM, boss_phase);
 					groundSlam[i].base.isWait = true;
-					groundSlam[i].base.isAlive = false;
 					break;
 				}
 			}
@@ -1207,6 +1326,47 @@ void DrawGroundSlam(GroundSlam groundSlam[], int max, float camX, float camY) {
 		}
 	}
 }
+// スキルのアニメーション
+// 地面攻撃
+void UpdateGroundAnim(GroundSlam gs[], int max, float deltaTime) {
+	for (int i = 0; i < max; i++) {
+		if (!gs[i].base.isAlive)
+			continue;
+
+		gs[i].animTimer += deltaTime;
+		if (gs[i].animTimer >= gs[i].frameTime) {
+			gs[i].animTimer = 0.0f;
+			gs[i].currentFrame++;
+			if (gs[i].currentFrame >= gs[i].frameCount) {
+				gs[i].currentFrame = gs[i].frameCount - 1;
+			}
+		}
+	}
+}
+
+void DrawGroundSlamAnim(GroundSlam gs[], int max, float camX, float camY) {
+
+	for (int i = 0; i < max; i++) {
+		if (!gs[i].base.isAlive && !gs[i].base.isWait)
+			continue;
+
+		int tex = gs[i].tex;
+
+		int frameSize = boss_phase == PHASE_1 ? 160 : 220;
+		int u = frameSize * gs[i].currentFrame;
+		int v = 0;
+
+		int drawX = (int)(gs[i].base.pos.x - camX);
+		int drawY = (int)(gs[i].base.pos.y - camY);
+
+		Novice::DrawQuad(
+		    drawX, drawY,                         // 左上 LT
+		    drawX + frameSize, drawY,             // 右上 RT
+		    drawX, drawY + frameSize,             // 左下 LB
+		    drawX + frameSize, drawY + frameSize, // 右下 RB
+		    u, v, frameSize, frameSize, tex, WHITE);
+	}
+}
 
 //=====================================================================================================================================================================================================================
 //
@@ -1226,16 +1386,17 @@ void ALL(
 	boss_start = IDLE;
 
 	player.base.pos = {20.0f * tile, 40.0f * tile};
-	player.base.hp = 100;
+	player.base.hp = 5;
 	player.base.isInvincible = false;
 	player.state = PST_IDLE;
 	player.dir = DIR_RIGHT;
 	player.currentFrame = 0;
 	player.animTimer = 0.0f;
 	player.base.isAlive = true;
+	player.animEnd = false;
 
 	boss.base.pos = {640, 360};
-	boss.base.hp = 300;
+	boss.base.hp = 1000;
 	boss.base.isInvincible = false;
 	boss.dir = RIGHT;
 	boss.currentFrame = 0;
@@ -1249,6 +1410,7 @@ void ALL(
 	boss.bossDirLocked = false;
 	boss.bossLockedDir = {1.0f, 0.0f};
 	boss.currentSkill = SHOOT;
+	boss.animEnd = false;
 
 	camera.worldOffset.x = player.base.pos.x + player.base.width * 0.5f - kWindowWitch * 0.5f;
 	camera.worldOffset.y = player.base.pos.y + player.base.height * 0.5f - kWindowHeight * 0.5f;
@@ -1257,8 +1419,7 @@ void ALL(
 	camera.shankeTime = 0;
 	camera.shakeProw = 0.0f;
 
-
-	laser = InitLaser(boss.base, LASER, player.base, boss_phase);
+	InitLaser(laser, boss.base, LASER, player.base, boss_phase);
 
 	for (int i = 0; i < scatterMax; i++) {
 		scatter[i].base.isAlive = false;
@@ -1308,6 +1469,39 @@ void ALL(
 	loadingTimer = 150;
 	introTimer = 90;
 }
+// ui
+void UI_ALL(UI& startBtn, UI& manualBtn, UI& backBtn, UI& stopBtn, UI& menuBtn_countinou, UI& menuBtn_return, UI& menuBtn_return_title, UI& scoreBtn_return, UI& scoreBtn_return_title,UI&bossHp) {
+
+	startBtn.isHover = false;
+	startBtn.isClicked = false;
+
+	manualBtn.isHover = false;
+	manualBtn.isClicked = false;
+
+	backBtn.isHover = false;
+	backBtn.isClicked = false;
+
+	stopBtn.isHover = false;
+	stopBtn.isClicked = false;
+
+	menuBtn_countinou.isHover = false;
+	menuBtn_countinou.isClicked = false;
+
+	menuBtn_return.isHover = false;
+	menuBtn_return.isClicked = false;
+
+	menuBtn_return_title.isHover = false;
+	menuBtn_return_title.isClicked = false;
+
+	scoreBtn_return.isHover = false;
+	scoreBtn_return.isClicked = false;
+
+	scoreBtn_return_title.isHover = false;
+	scoreBtn_return_title.isClicked = false;
+	
+	bossHp.animTimer = 0;
+	bossHp.currentFrame = 0;
+}
 
 // Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
@@ -1324,15 +1518,14 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	};
 
 	Camera camera{
-	    .worldOffset = {player.base.pos.x + player.base.width * 0.5f - kWindowWitch * 0.5f,player.base.pos.y + player.base.height* 0.5f - kWindowHeight* 0.5},
-	    .shakeOffset = {0.0f, 0.0f},
+	    .worldOffset = {player.base.pos.x + player.base.width / 2 - kWindowWitch / 2, player.base.pos.y + player.base.height / 2 - kWindowHeight / 2},
+	    .shakeOffset = {0.0f,	                                                     0.0f	                                                      },
 	    .shankeTime = 0,
 	    .shakeProw = 0.0f,
 	};
 
 	// レーザー
-	Laser laser = InitLaser(boss.base, LASER, player.base, boss_phase);
-
+	Laser laser = InitLaser(laser, boss.base, LASER, player.base, boss_phase);
 	// 地面攻撃
 	const int groundSlamMax = 8;
 	GroundSlam groundSlam[groundSlamMax];
@@ -1370,32 +1563,54 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	};
 
 	// タイトル
-	UI startBtn{540, 300, 200, 60, "START"};
-	UI manualBtn{540, 400, 200, 60, "MANUAL"};
-	UI backBtn{20, 20, 120, 50, "BACK"};
+	UI startBtn{340, 550, 200, 100};
+	UI manualBtn{740, 550, 200, 100};
+	UI backBtn{20, 20, 120, 50};
 
 	// ゲーム時、止まる
-	UI stopBtn{0, 0, 30, 30, "STOP"};
+	UI stopBtn{0, 0, 40, 40};
 	// 止まるmenu
 	// 続行
-	UI menuBtn_countinou{540, 100, 200, 100, "COUNTINOU"};
-	// やり直
-	UI menuBtn_return{540, 300, 200, 100, "RETURN"};
-	// タイトル戻す
-	UI menuBtn_return_title{540, 500, 200, 100, "RETURN_TITLE"};
+	UI menuBtn_countinou{540, 100, 200, 100};
+	// やり直し
+	UI menuBtn_return{540, 300, 200, 100};
+	// タイトル戻る
+	UI menuBtn_return_title{540, 500, 200, 100};
 
 	// WIN
 	// もう一回遊び
-	UI scoreBtn_return{540, 100, 200, 100, "RETURN"};
+	UI scoreBtn_return{340, 450, 200, 100};
 	// タイトルに戻す
-	UI scoreBtn_return_title{540, 520, 200, 100, "RETURN_TITLE"};
+	UI scoreBtn_return_title{740, 450, 200, 100};
+
+	UI winBox = {
+	    .x = 340,
+	    .y = 150,
+	    .w = 600,
+	    .h = 200,
+	    .winEnd = false,
+	};
+	UI dieBox = {
+	    .x = 340,
+	    .y = 150,
+	    .w = 600,
+	    .h = 200,
+	    .dieEnd = false,
+	};
+
+	UI bossHp = {
+	    .x = 100,
+	    .y = 650,
+	    .w = 1098,
+	    .h = 32,
+	};
 
 	//////////////////////////////////////////////////
 
 	// ライブラリの初期化
 	Novice::Initialize(kWindowTitle, kWindowWitch, kWindowHeight);
 
-	int laserImager = Novice::LoadTexture("./imager/laser.png");
+	// int laserImager = Novice::LoadTexture("./imager/laser.png");
 	int tileMap_2 = Novice::LoadTexture("./imager/tileMap_2.png");
 	int tileMap_4 = Novice::LoadTexture("./imager/tileMap_4.png");
 	int tileMap_5 = Novice::LoadTexture("./imager/tileMap_5.png");
@@ -1405,6 +1620,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	int bg1 = Novice::LoadTexture("./imager/bg.png");
 	int bg2 = Novice::LoadTexture("./imager/bg2.png");
 	int bg3 = Novice::LoadTexture("./imager/bg3.png");
+
+	//
+	int title = Novice::LoadTexture("./imager/title.png");
 
 	// 待機
 	player.tex[DIR_LEFT][PST_IDLE] = Novice::LoadTexture("./imager/player_idle_left.png");
@@ -1452,6 +1670,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 	int playerHit = Novice::LoadTexture("./imager/player_hit.png");
 
+	player.tex[DIR_LEFT][PST_DIE] = Novice::LoadTexture("./imager/player_die.png");
+	player.tex[DIR_RIGHT][PST_DIE] = Novice::LoadTexture("./imager/player_die.png");
+	player.tex[DIR_UP][PST_DIE] = Novice::LoadTexture("./imager/player_die.png");
+	player.tex[DIR_DOWN][PST_DIE] = Novice::LoadTexture("./imager/player_die.png");
+
+	player.frameCount[DIR_RIGHT][PST_DIE] = 11;
+	player.frameCount[DIR_LEFT][PST_DIE] = 11;
+	player.frameCount[DIR_UP][PST_DIE] = 11;
+	player.frameCount[DIR_DOWN][PST_DIE] = 11;
+
 	//==================================================================
 	// int bossImager = Novice::LoadTexture("./imager/boss.png");
 	// idle
@@ -1483,9 +1711,113 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	boss.tex[LEFT][BOSS_ANIM_INTRO] = Novice::LoadTexture("./imager/boss_intor.png");
 	boss.frameCount[RIGHT][BOSS_ANIM_INTRO] = 26;
 	boss.frameCount[LEFT][BOSS_ANIM_INTRO] = 26;
+	// レーザ
+	boss.tex[RIGHT][BOSS_ANIM_LASER] = Novice::LoadTexture("./imager/boss_laser_right.png");
+	boss.tex[LEFT][BOSS_ANIM_LASER] = Novice::LoadTexture("./imager/boss_laser_left.png");
+	boss.frameCount[RIGHT][BOSS_ANIM_LASER] = 28;
+	boss.frameCount[LEFT][BOSS_ANIM_LASER] = 28;
+
+	// die
+	boss.tex[RIGHT][BOSS_ANIM_DIE] = Novice::LoadTexture("./imager/boss_die.png");
+	boss.tex[LEFT][BOSS_ANIM_DIE] = Novice::LoadTexture("./imager/boss_die.png");
+	boss.frameCount[RIGHT][BOSS_ANIM_DIE] = 30;
+	boss.frameCount[LEFT][BOSS_ANIM_DIE] = 30;
+
+	//弾
+	int bossBullet = Novice::LoadTexture("./imager/bossbullet.png");
+	int playerbullet = Novice::LoadTexture("./imager/playerBullet.png");
+
+
+	// スキル
+
+	for (int i = 0; i < groundSlamMax; i++) {
+		InitgroundSlam(groundSlam[i], {0, 0}, GROUNDSLAM, boss_phase);
+
+		if (boss_phase == PHASE_1) {
+			groundSlam[i].tex = Novice::LoadTexture("./imager/groundSlam1.png");
+		} else if (boss_phase == PHASE_2) {
+			groundSlam[i].tex = Novice::LoadTexture("./imager/groundSlam2.png");
+		}
+
+		groundSlam[i].frameCount = 4;
+		groundSlam[i].frameTime = 0.1f;
+		groundSlam[i].currentFrame = 0;
+		groundSlam[i].animTimer = 0.0f;
+	}
+
+	if (boss_phase == PHASE_1) {
+		laser.tex = Novice::LoadTexture("./imager/laser1.png");
+	} else if (boss_phase == PHASE_2) {
+		laser.tex = Novice::LoadTexture("./imager/laser2.png");
+	}
+	laser.frameCount = 4;
+	laser.frameTime = 0.1f;
+	laser.currentFrame = 0;
+	laser.animTimer = 0.0f;
 
 	// ui
 	int explanation = Novice::LoadTexture("./imager/explanation.png");
+
+	startBtn.tex1 = Novice::LoadTexture("./imager/ui_start_on.png");
+	startBtn.tex2 = Novice::LoadTexture("./imager/ui_start_off.png");
+
+	manualBtn.tex1 = Novice::LoadTexture("./imager/ui_manual_on.png");
+	manualBtn.tex2 = Novice::LoadTexture("./imager/ui_manual_off.png");
+
+	int winImager = Novice::LoadTexture("./imager/win.png");
+	int dieImager = Novice::LoadTexture("./imager/die.png");
+
+	int stopBg = Novice::LoadTexture("./imager/stopBg.png");
+
+	//boss,HP
+	bossHp.tex= Novice::LoadTexture("./imager/boss_hp_gif.png");
+	int bossHpImager = Novice::LoadTexture("./imager/boss_hp.png");
+	bossHp.animTimer = 0.0f;
+	bossHp.currentFrame = 0;
+	bossHp.frameTime = 0.1f;
+	bossHp.frameCount = 14;
+
+	// ゲーム止まる
+	stopBtn.tex1 = Novice::LoadTexture("./imager/ui_stop_on.png");
+	stopBtn.tex2 = Novice::LoadTexture("./imager/ui_stop_off.png");
+
+	menuBtn_countinou.tex1 = Novice::LoadTexture("./imager/ui_menu_countinou_on.png");
+	menuBtn_countinou.tex2 = Novice::LoadTexture("./imager/ui_menu_countinou_off.png");
+
+	menuBtn_return.tex1 = Novice::LoadTexture("./imager/ui_menu_return_on.png");
+	menuBtn_return.tex2 = Novice::LoadTexture("./imager/ui_menu_return_off.png");
+
+	menuBtn_return_title.tex1 = Novice::LoadTexture("./imager/ui_menu_Title_return_on.png");
+	menuBtn_return_title.tex2 = Novice::LoadTexture("./imager/ui_menu_Title_return_off.png");
+
+	// クリア
+	scoreBtn_return.tex1 = Novice::LoadTexture("./imager/ui_score_return_on.png");
+	scoreBtn_return.tex2 = Novice::LoadTexture("./imager/ui_score_return_off.png");
+
+	scoreBtn_return_title.tex1 = Novice::LoadTexture("./imager/ui_menu_Title_return_on.png");
+	scoreBtn_return_title.tex2 = Novice::LoadTexture("./imager/ui_menu_Title_return_off.png");
+
+	// 説明
+	backBtn.tex1 = Novice::LoadTexture("./imager/ui_back_on.png");
+	backBtn.tex2 = Novice::LoadTexture("./imager/ui_back_off.png");
+
+	/// bgm
+	int titleBgm = Novice::LoadAudio("./Sounds/title.wav");
+	int titleHandle = -1;
+
+	int winBgm = Novice::LoadAudio("./Sounds/win.wav");
+	int winHandle = -1;
+	bool winPlay = false;
+
+	int dieBgm = Novice::LoadAudio("./Sounds/die.wav");
+	int dieHandle = -1;
+	bool dieplay = false;
+
+	int fightBgm = Novice::LoadAudio("./Sounds/fight.wav");
+	int fightHandle = -1;
+
+	int fight2Bgm = Novice::LoadAudio("./Sounds/fight2.wav");
+	int fight2Handle = -1;
 
 	// キー入力結果を受け取る箱
 	char keys[256] = {0};
@@ -1531,9 +1863,16 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		switch (game_state) {
 			// タイトル
 		case START: {
+			winPlay = false;
+			dieplay = false;
+			Novice::StopAudio(winHandle);
+			Novice::StopAudio(dieHandle);
+			if (!Novice::IsPlayingAudio(titleHandle)) {
+				titleHandle = Novice::PlayAudio(titleBgm, true, 1.0f);
+			}
 			UpdateButton(startBtn);
 			UpdateButton(manualBtn);
-			
+
 			if (manualBtn.isClicked) {
 				game_state = MANUAL;
 			}
@@ -1556,16 +1895,17 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		}
 
 		case LOADING: {
-
+			Novice::StopAudio(titleHandle);
 			loadingTimer--;
 			if (loadingTimer <= 0) {
 				camX = player.base.pos.x - kWindowWitch / 2;
 				camY = player.base.pos.y - kWindowHeight / 2;
 
-				bossRoomEntered = false; 
+				bossRoomEntered = false;
 				loadingTimer = 150;
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
-				   bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
+				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
+				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title,bossHp);
 
 				game_state = FIGHT;
 			}
@@ -1575,7 +1915,14 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			// 戦い
 		case FIGHT: {
-			
+			winPlay = false;
+			dieplay = false;
+			Novice::StopAudio(winHandle);
+			Novice::StopAudio(dieHandle);
+			Novice::StopAudio(titleHandle);
+			if (!Novice::IsPlayingAudio(fight2Handle)) {
+				fight2Handle = Novice::PlayAudio(fight2Bgm, true, 0.7f);
+			}
 
 			if (boss.anim != prevAnim) {
 				boss.currentFrame = 0;
@@ -1683,10 +2030,19 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				TileHit(&player.base.pos, &player.base.vel, player.base.width, player.base.height, map, tile);
 
 				float playerCenterY = player.base.pos.y + player.base.height * 0.5f;
-				if (!bossRoomEntered && playerCenterY + player.base.height < 25 * tile) {
-					bossRoomEntered = true;
+				if (!bossRoomEntered) {
+					if (playerCenterY + player.base.height > 25 * tile) {
+						Novice::StopAudio(fight2Handle);
+						if (!Novice::IsPlayingAudio(fightHandle)) {
+							fightHandle = Novice::PlayAudio(fightBgm, true, 1.0f);
+						}
+					}
+				}
 
-					// boss.base.isAlive = true;
+				if (!bossRoomEntered && playerCenterY + player.base.height < 25 * tile) {
+					Novice::StopAudio(fightHandle);
+				
+					bossRoomEntered = true;
 					game_state = INTRO;
 					introTimer = 90;
 
@@ -1800,6 +2156,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				// ApplyCameraShake(camera, 10, 60);
 			}
 
+		
 			switch (boss_start) {
 
 			case IDLE: {
@@ -2026,12 +2383,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			// レーザー
 			// UpdateSkillWait(laser.base);
 			UpdateLaser(laser);
+			UpdateLaserAnim(laser, deltaTime);
 			// 地面攻撃
 			UpdateGroundSlam(groundSlam, groundSlamMax);
+			UpdateGroundAnim(groundSlam, groundSlamMax, deltaTime);
 			// 弾発射
 			UpdateScatterShot(scatter, scatterMax);
 
-			// 1) 散弹击中玩家
 			for (int i = 0; i < scatterMax; i++) {
 				if (scatter[i].base.isAlive && isSkillHit(scatter[i].base, player.base)) {
 					ApplyDamage(player.base, scatter[i].base.damege, true);
@@ -2054,26 +2412,21 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				}
 			}
 
-			// 5) 冲撞撞到玩家
 			if (boss.base.isDash && isHit(boss.base, player.base)) {
 				ApplyDamage(player.base, boss.base.damage, true);
 				ApplyCameraShake(camera, 3, 6);
 			}
 
 			if (laser.base.isAlive) {
-
-				// 激光起点
 				float BX = laser.base.pos.x + laser.base.width * 0.0f;
-				float BY = laser.base.pos.y + laser.base.height * 0.5f; // 激光中心
+				float BY = laser.base.pos.y + laser.base.height * 0.5f;
 
 				float DX = cosf(laser.angle);
 				float DY = sinf(laser.angle);
 
-				// 玩家中心
 				float PX = player.base.pos.x + player.base.width * 0.5f;
 				float PY = player.base.pos.y + player.base.height * 0.5f;
 
-				// 点到线段距离
 				float t = ((PX - BX) * DX + (PY - BY) * DY);
 				t = fmaxf(0.0f, fminf(laser.base.width, t));
 
@@ -2095,6 +2448,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		}
 		case INTRO: {
 
+			Novice::StopAudio(fight2Handle);
 			float deltaTime = 1.0f / 60.0f;
 
 			boss.anim = BOSS_ANIM_INTRO;
@@ -2102,6 +2456,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			UpdatePlayerAnim(player, deltaTime);
 			UpdateBossAnim(boss, deltaTime);
+			UpdateBossHpAnim(bossHp, deltaTime);
 
 			player.base.vel = {0, 0};
 
@@ -2134,18 +2489,38 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			// 勝利
 		case WIN: {
+			Novice::StopAudio(fight2Handle);
+			if (!winPlay) {
+				winHandle = Novice::PlayAudio(winBgm, false, 1.0f);
+				winPlay = true;
+			}
 
-			UpdateButton(scoreBtn_return);
+			float deltaTime = 1.0f / 60.0f;
+			boss.anim = BOSS_ANIM_DIE;
+			player.state = PST_IDLE;
+			UpdatePlayerAnim(player, deltaTime);
+			UpdateBossDieAnim(boss, winBox, deltaTime);
+			if (boss.animEnd) {
+				UpdateButton(scoreBtn_return);
+				UpdateButton(scoreBtn_return_title);
+			}
+
 			if (scoreBtn_return.isClicked) {
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
 				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
+				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp);
+
 				game_state = FIGHT;
+				Novice::StopAudio(winHandle);
 			}
-			UpdateButton(scoreBtn_return_title);
+
 			if (scoreBtn_return_title.isClicked) {
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
 				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
+				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp);
+
 				game_state = START;
+				Novice::StopAudio(winHandle);
 			}
 
 			break;
@@ -2153,37 +2528,66 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			// 負け
 		case LOSE: {
+			Novice::StopAudio(fight2Handle);
 
-			UpdateButton(scoreBtn_return);
+			if (!dieplay) {
+				dieHandle = Novice::PlayAudio(dieBgm, false, 1.0f);
+				dieplay = true;
+			}
+
+			float deltaTime = 1.0f / 60.0f;
+			player.state = PST_DIE;
+
+			UpdatePlayerDieAnim(player, dieBox, deltaTime);
+
+			if (player.animEnd) {
+				UpdateButton(scoreBtn_return);
+				UpdateButton(scoreBtn_return_title);
+			}
+
 			if (scoreBtn_return.isClicked) {
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
 				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
+				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp);
+
 				game_state = FIGHT;
 			}
-			UpdateButton(scoreBtn_return_title);
+
 			if (scoreBtn_return_title.isClicked) {
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
 				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
+				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp);
+
 				game_state = START;
 			}
 			break;
 		}
 		case STOP: {
+			Novice::StopAudio(titleHandle);
+			Novice::StopAudio(fightHandle);
+
+			if (Novice::IsPlayingAudio(fight2Handle)) {
+				Novice::SetAudioVolume(fight2Handle, 0.0f);
+			}
+
 			UpdateButton(menuBtn_countinou);
 			if (menuBtn_countinou.isClicked) {
 				game_state = FIGHT;
+				Novice::SetAudioVolume(fight2Handle, 0.7f);
 			}
 
 			UpdateButton(menuBtn_return);
 			if (menuBtn_return.isClicked) {
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
 				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
+				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp);
 				game_state = FIGHT;
 			}
 			UpdateButton(menuBtn_return_title);
 			if (menuBtn_return_title.isClicked) {
 				ALL(player, boss, camera, player_range, rangeMax, laser, scatter, scatterMax, groundSlam, groundSlamMax, reload, blood, prtmax, scatterStarted, laserSkillStarted, groundSkillStarted,
 				    bossChargeStarted, bossChargeWindup, bossChargeWindupTimer, bossChargeCount, bossChargeDir, bossChargeAimDir);
+				UI_ALL(startBtn, manualBtn, backBtn, stopBtn, menuBtn_countinou, menuBtn_return, menuBtn_return_title, scoreBtn_return, scoreBtn_return_title, bossHp);
 				game_state = START;
 			}
 		}
@@ -2209,7 +2613,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 		switch (game_state) {
 		case START: {
 
-			Novice::DrawBox(0, 0, kWindowWitch, kWindowHeight, 0.0f, BLUE, kFillModeSolid);
+			Novice::DrawSprite(0, 0, title, 1, 1, 0.0f, WHITE);
 			// UpdateButton(startBtn);
 			DrawButton(startBtn);
 			DrawButton(manualBtn);
@@ -2233,6 +2637,46 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Novice::DrawSprite(18 * tile - (int)camX, 25 * tile - (int)camY, bg2, 1, 1, 0.0f, WHITE);
 			Novice::DrawSprite(8 * tile - (int)camX, 38 * tile - (int)camY, bg3, 1, 1, 0.0f, WHITE);
 
+			
+			// 弾の画像
+			for (int i = 0; i < rangeMax; i++) {
+				if (player_range[i].isAlive) {
+					Novice::DrawSprite((int)player_range[i].pos.x - (int)camX, (int)player_range[i].pos.y - (int)camY, playerbullet, 1, 1, 0.0f, WHITE);
+				}
+			}
+
+			// boss　のスキル　描画
+			// レーザー
+			DrawLaser(laser, camX, camY);
+			// 地面攻撃
+			DrawGroundSlamAnim(groundSlam, groundSlamMax, camX, camY);
+			//  弾発射
+			DrawScatterShot(scatter, scatterMax, camX, camY,bossBullet);
+			// 血
+			for (int i = 0; i < prtmax; i++) {
+				if (blood[i].isAlive) {
+					Novice::DrawBox((int)blood[i].pos.x - (int)camX, (int)blood[i].pos.y - (int)camY, (int)blood[i].width, (int)blood[i].height, 0.0f, RED, kFillModeSolid);
+				}
+			}
+
+			for (int y = 0; y < 45; y++) {
+				for (int x = 0; x < 40; x++) {
+					if (map[y][x] == 2) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_2, 1, 1, 0.0f, WHITE);
+					} else if (map[y][x] == 3) {
+						Novice::DrawBox((int)tile * x - (int)camX, (int)tile * y - (int)camY, tile, tile, 0.0f, BLACK, kFillModeSolid);
+					} else if (map[y][x] == 4) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_4, 1, 1, 0.0f, WHITE);
+					} else if (map[y][x] == 5) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_5, 1, 1, 0.0f, WHITE);
+					} else if (map[y][x] == 6) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_6, 1, 1, 0.0f, WHITE);
+					} else if (map[y][x] == 7) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_7, 1, 1, 0.0f, WHITE);
+					}
+				}
+			}
+
 			// player
 			if (player.base.isAlive) {
 
@@ -2247,7 +2691,7 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				int drawX = (int)(player.base.pos.x - camX);
 				int drawY = (int)(player.base.pos.y - camY);
 
-				//	Novice::DrawBox(drawX, drawY, (int)player.base.width, (int)player.base.height, 0.0f, WHITE, kFillModeSolid);
+				
 				Novice::DrawQuad(
 				    drawX - 16, drawY - 15,                   // 左上 LT
 				    drawX + frameW - 16, drawY - 15,          // 右上 RT
@@ -2275,19 +2719,20 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				    u, v, frameW, frameH, tex, WHITE);
 			}
 
-			
-
-			// 弾の画像
-			for (int i = 0; i < rangeMax; i++) {
-				if (player_range[i].isAlive) {
-
-					Novice::DrawBox(
-					    (int)player_range[i].pos.x - (int)camX, (int)player_range[i].pos.y - (int)camY, (int)player_range[i].width, (int)player_range[i].height, 0.0f, WHITE, kFillModeSolid);
-				}
+			if (bossRoomEntered&&boss.base.isAlive) {
+				DrawBossHp(boss, bossHp);
+				Novice::DrawSprite(bossHp.x, bossHp.y, bossHpImager, 1, 1, 0.0f, WHITE);
 			}
+			DrawButton(stopBtn);
+			break;
+		}
 
-			// レーザー
-			DrawLaser(laser, camX, camY, laserImager);
+		case WIN: {
+
+			Novice::DrawBox(-500, -500, 3000, 3000, 0.0f, BLACK, kFillModeSolid);
+			Novice::DrawSprite(0 - (int)camX, 0 - (int)camY, bg1, 1, 1, 0.0f, WHITE);
+			Novice::DrawSprite(18 * tile - (int)camX, 25 * tile - (int)camY, bg2, 1, 1, 0.0f, WHITE);
+			Novice::DrawSprite(8 * tile - (int)camX, 38 * tile - (int)camY, bg3, 1, 1, 0.0f, WHITE);
 
 			for (int y = 0; y < 45; y++) {
 				for (int x = 0; x < 40; x++) {
@@ -2307,95 +2752,170 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				}
 			}
 
-			// boss
+			{
+				// playerの画像
+				int tex = player.tex[player.dir][player.state];
+				int frameW = 64;
+				int frameH = 64;
+				int u = frameW * player.currentFrame;
+				int v = 0;
+
+				int drawX = (int)(player.base.pos.x - camX);
+				int drawY = (int)(player.base.pos.y - camY);
+				Novice::DrawQuad(
+				    drawX - 16, drawY - 15,                   // 左上 LT
+				    drawX + frameW - 16, drawY - 15,          // 右上 RT
+				    drawX - 16, drawY + frameH - 15,          // 左下 LB
+				    drawX + frameW - 16, drawY + frameH - 15, // 右下 RB
+				    u, v, frameW, frameH, tex, WHITE);
+			}
+
+			{
+				int tex = boss.tex[boss.dir][boss.anim];
+				int frameW = 128;
+				int frameH = 168;
+
+				int u = frameW * boss.currentFrame;
+				int v = 0;
+
+				int drawX = (int)(boss.base.pos.x - camX);
+				int drawY = (int)(boss.base.pos.y - camY);
+
+				Novice::DrawQuad(
+				    drawX, drawY,                   // 左上 LT
+				    drawX + frameW, drawY,          // 右上 RT
+				    drawX, drawY + frameH,          // 左下 LB
+				    drawX + frameW, drawY + frameH, // 右下 RB
+				    u, v, frameW, frameH, tex, WHITE);
+			}
+
+			if (boss.animEnd) {
+				DrawButton(scoreBtn_return);
+				DrawButton(scoreBtn_return_title);
+				Novice::DrawSprite(winBox.x, winBox.y, winImager, 1, 1, 0.0f, WHITE);
+			}
+
+			break;
+		}
+
+		case LOSE: {
+
+			Novice::DrawBox(-500, -500, 3000, 3000, 0.0f, BLACK, kFillModeSolid);
+			{
+				// playerの画像
+				int tex = player.tex[player.dir][player.state];
+				int frameW = 64;
+				int frameH = 64;
+
+				int u = frameW * player.currentFrame;
+				int v = 0;
+
+				int drawX = (int)(player.base.pos.x - camX);
+				int drawY = (int)(player.base.pos.y - camY);
+
+				Novice::DrawQuad(
+				    drawX - 16, drawY - 15,                   // 左上 LT
+				    drawX + frameW - 16, drawY - 15,          // 右上 RT
+				    drawX - 16, drawY + frameH - 15,          // 左下 LB
+				    drawX + frameW - 16, drawY + frameH - 15, // 右下 RB
+				    u, v, frameW, frameH, tex, WHITE);
+			}
+
+			if (player.animEnd) {
+				DrawButton(scoreBtn_return);
+				DrawButton(scoreBtn_return_title);
+				Novice::DrawSprite(dieBox.x, dieBox.y, dieImager, 1, 1, 0.0f, WHITE);
+			}
+
+			break;
+		}
+		case STOP: {
+
+			Novice::DrawBox(-500, -500, 3000, 3000, 0.0f, BLACK, kFillModeSolid);
+			Novice::DrawSprite(0 - (int)camX, 0 - (int)camY, bg1, 1, 1, 0.0f, WHITE);
+			Novice::DrawSprite(18 * tile - (int)camX, 25 * tile - (int)camY, bg2, 1, 1, 0.0f, WHITE);
+			Novice::DrawSprite(8 * tile - (int)camX, 38 * tile - (int)camY, bg3, 1, 1, 0.0f, WHITE);
+			
+
+			// 弾の画像
+			for (int i = 0; i < rangeMax; i++) {
+				if (player_range[i].isAlive) {
+
+					Novice::DrawSprite((int)player_range[i].pos.x - (int)camX, (int)player_range[i].pos.y - (int)camY, playerbullet, 1, 1, 0.0f, WHITE);
+				}
+			}
 
 			// boss　のスキル　描画
-
+			// レーザー
+			DrawLaser(laser, camX, camY);
 			// 地面攻撃
-			DrawGroundSlam(groundSlam, groundSlamMax, camX, camY);
-			// 弾発射
-			DrawScatterShot(scatter, scatterMax, camX, camY);
-
-			// ダシュル
-
+			DrawGroundSlamAnim(groundSlam, groundSlamMax, camX, camY);
+			//  弾発射
+			DrawScatterShot(scatter, scatterMax, camX, camY, bossBullet);
 			// 血
-
 			for (int i = 0; i < prtmax; i++) {
 				if (blood[i].isAlive) {
 					Novice::DrawBox((int)blood[i].pos.x - (int)camX, (int)blood[i].pos.y - (int)camY, (int)blood[i].width, (int)blood[i].height, 0.0f, RED, kFillModeSolid);
 				}
 			}
 
-			// 调试
-			int Y = 0;
-			int H = 20;
-
-			if (keys[DIK_F1] && !preKeys[DIK_F1]) {
-				debug = !debug;
-			}
-			if (debug) {
-
-				Novice::ScreenPrintf(0, Y += H, "PLAYER HP: %d", player.base.hp);
-				Novice::ScreenPrintf(0, Y += H, "PLAYER isInvincible: %d", player.base.isInvincible);
-				Novice::ScreenPrintf(0, Y += H, "PLAYER invincible_time: %d", player.base.invincible_time);
-				Novice::ScreenPrintf(0, Y += H, "BOSS HP: %d", boss.base.hp);
-				Novice::ScreenPrintf(0, Y += H, "BOSS isInvincible: %d", boss.base.isInvincible);
-				Novice::ScreenPrintf(0, Y += H, "BOSS invincible_time: %d", boss.base.invincible_time);
-				Novice::ScreenPrintf(0, Y += H, "shakTime: %d", camera.shankeTime);
-				Novice::ScreenPrintf(0, Y += H, "dashTime: %f", player.base.dash_time);
-				Novice::ScreenPrintf(0, Y += H, "nowSpeed: %f", player.base.speed);
-				Novice::ScreenPrintf(0, Y += H, "bossHit: %d", boss.base.isHit);
-				Novice::ScreenPrintf(0, Y += H, "prtIsAlive: %d", blood->isAlive);
-				Novice::ScreenPrintf(0, Y += H, "nowBullet: %d", reload.nowBullet);
-				Novice::ScreenPrintf(0, Y += H, "ReloadMax: %d", reload.bulletMax);
-				Novice::ScreenPrintf(0, Y += H, "ReloadTime: %f", reload.reload_time);
-				Novice::ScreenPrintf(0, Y += H, "isReload: %d", reload.isReload);
-				Novice::ScreenPrintf(0, Y += H, "playerDir_X: %f", player.base.dir.x);
-				Novice::ScreenPrintf(0, Y += H, "playerDir_Y: %f", player.base.dir.y);
-				Novice::ScreenPrintf(0, Y += H, "BossShootTime: %d", boss.base.shootCooldown);
-				Novice::ScreenPrintf(0, Y += H, "BOSSDir_X: %f", boss.base.dir.x);
-				Novice::ScreenPrintf(0, Y += H, "BOSSDir_Y: %f", boss.base.dir.y);
-				Novice::ScreenPrintf(0, Y += H, "laser_waitTime:  %d", laser.base.waitTime);
-				Novice::ScreenPrintf(0, Y += H, "laser_Iswait:  %d", laser.base.isWait);
-				Novice::ScreenPrintf(0, Y += H, "laser_aliveTime:  %d", laser.base.aliveTime);
-				Novice::ScreenPrintf(0, Y += H, "laser_IsAliveTime:  %d", laser.base.isAlive);
-				Novice::ScreenPrintf(0, Y += H, " groundPos:  %0.2f,%0.2f", groundSlam->base.pos.x, groundSlam->base.pos.y);
-				Novice::ScreenPrintf(0, Y += H, "Boss_State: %d", boss_start);
-				Novice::ScreenPrintf(0, Y += H, "Boss_Skill: %d", boss.currentSkill);
-				Novice::ScreenPrintf(0, Y += H, "Skill_CD: %d", boss.skillCooldown);
-				Novice::ScreenPrintf(0, Y += H, "bossSHASE:%d", boss_phase);
-				Novice::ScreenPrintf(0, Y += H, "Frame: %d", player.currentFrame);
-				Novice::ScreenPrintf(0, Y += H, "Dir: %d State: %d", player.dir, player.state);
-				Novice::ScreenPrintf(
-				    0, Y += H, "idleL:%d idleR:%d runL:%d runR:%d", player.tex[DIR_LEFT][PST_IDLE], player.tex[DIR_RIGHT][PST_IDLE], player.tex[DIR_LEFT][PST_RUN], player.tex[DIR_RIGHT][PST_RUN]);
+			for (int y = 0; y < 45; y++) {
+				for (int x = 0; x < 40; x++) {
+					if (map[y][x] == 2) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_2, 1, 1, 0.0f, WHITE);
+					} else if (map[y][x] == 3) {
+						Novice::DrawBox((int)tile * x - (int)camX, (int)tile * y - (int)camY, tile, tile, 0.0f, BLACK, kFillModeSolid);
+					} else if (map[y][x] == 4) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_4, 1, 1, 0.0f, WHITE);
+					} else if (map[y][x] == 5) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_5, 1, 1, 0.0f, WHITE);
+					} else if (map[y][x] == 6) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_6, 1, 1, 0.0f, WHITE);
+					} else if (map[y][x] == 7) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_7, 1, 1, 0.0f, WHITE);
+					}
+				}
 			}
 
-			// Novice::DrawLine((int)px - (int)camX, (int)py - (int)camY, (int)mouse.pos.x, (int)mouse.pos.y, RED);
+			{
+				int tex = boss.tex[boss.dir][boss.anim];
+				int frameW = 128;
+				int frameH = 168;
 
-			// Novice::DrawBox(deadX, deadY, deadW, deadH, 0.0f, RED, kFillModeWireFrame);
+				int u = frameW * boss.currentFrame;
+				int v = 0;
 
-			DrawButton(stopBtn);
-			break;
-		}
+				int drawX = (int)(boss.base.pos.x - camX);
+				int drawY = (int)(boss.base.pos.y - camY);
 
-		case WIN: {
-			Novice::DrawBox(0, 0, kWindowWitch, kWindowHeight, 0.0f, 0xFFD700, kFillModeSolid);
-			Novice::ScreenPrintf(kWindowWitch / 2, kWindowHeight / 2, "WIN");
+				Novice::DrawQuad(
+				    drawX, drawY,                   // 左上 LT
+				    drawX + frameW, drawY,          // 右上 RT
+				    drawX, drawY + frameH,          // 左下 LB
+				    drawX + frameW, drawY + frameH, // 右下 RB
+				    u, v, frameW, frameH, tex, WHITE);
+			}
+			{
+				// playerの画像
+				int tex = player.tex[player.dir][player.state];
+				int frameW = 64;
+				int frameH = 64;
 
-			DrawButton(scoreBtn_return);
-			DrawButton(scoreBtn_return_title);
-			break;
-		}
+				int u = frameW * player.currentFrame;
+				int v = 0;
 
-		case LOSE: {
-			Novice::DrawBox(0, 0, kWindowWitch, kWindowHeight, 0.0f, RED, kFillModeSolid);
-			Novice::ScreenPrintf(kWindowWitch / 2, kWindowHeight / 2, "LOSE");
+				int drawX = (int)(player.base.pos.x - camX);
+				int drawY = (int)(player.base.pos.y - camY);
 
-			DrawButton(scoreBtn_return);
-			DrawButton(scoreBtn_return_title);
-			break;
-		}
-		case STOP: {
+				Novice::DrawQuad(
+				    drawX - 16, drawY - 15,                   // 左上 LT
+				    drawX + frameW - 16, drawY - 15,          // 右上 RT
+				    drawX - 16, drawY + frameH - 15,          // 左下 LB
+				    drawX + frameW - 16, drawY + frameH - 15, // 右下 RB
+				    u, v, frameW, frameH, tex, WHITE);
+			}
+
+			Novice::DrawSprite(0, 0, stopBg, 1, 1, 0.0f, WHITE);
 			DrawButton(menuBtn_countinou);
 			DrawButton(menuBtn_return);
 			DrawButton(menuBtn_return_title);
@@ -2408,6 +2928,25 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Novice::DrawSprite(0 - (int)camX, 0 - (int)camY, bg1, 1, 1, 0.0f, WHITE);
 			Novice::DrawSprite(18 * tile - (int)camX, 25 * tile - (int)camY, bg2, 1, 1, 0.0f, WHITE);
 			Novice::DrawSprite(8 * tile - (int)camX, 38 * tile - (int)camY, bg3, 1, 1, 0.0f, WHITE);
+
+			
+			for (int y = 0; y < 45; y++) {
+				for (int x = 0; x < 40; x++) {
+					if (map[y][x] == 2) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_2, 1, 1, 0.0f, WHITE);
+					} else if (map[y][x] == 3) {
+						Novice::DrawBox((int)tile * x - (int)camX, (int)tile * y - (int)camY, tile, tile, 0.0f, BLACK, kFillModeSolid);
+					} else if (map[y][x] == 4) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_4, 1, 1, 0.0f, WHITE);
+					} else if (map[y][x] == 5) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_5, 1, 1, 0.0f, WHITE);
+					} else if (map[y][x] == 6) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_6, 1, 1, 0.0f, WHITE);
+					} else if (map[y][x] == 7) {
+						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_7, 1, 1, 0.0f, WHITE);
+					}
+				}
+			}
 
 			{
 				// playerの画像
@@ -2450,23 +2989,27 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				    u, v, frameW, frameH, tex, WHITE);
 			}
 
-			for (int y = 0; y < 45; y++) {
-				for (int x = 0; x < 40; x++) {
-					if (map[y][x] == 2) {
-						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_2, 1, 1, 0.0f, WHITE);
-					} else if (map[y][x] == 3) {
-						Novice::DrawBox((int)tile * x - (int)camX, (int)tile * y - (int)camY, tile, tile, 0.0f, BLACK, kFillModeSolid);
-					} else if (map[y][x] == 4) {
-						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_4, 1, 1, 0.0f, WHITE);
-					} else if (map[y][x] == 5) {
-						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_5, 1, 1, 0.0f, WHITE);
-					} else if (map[y][x] == 6) {
-						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_6, 1, 1, 0.0f, WHITE);
-					} else if (map[y][x] == 7) {
-						Novice::DrawSprite((int)tile * x - (int)camX, (int)tile * y - (int)camY, tileMap_7, 1, 1, 0.0f, WHITE);
-					}
-				}
+			{
+				//boss Hp
+				int tex = bossHp.tex;
+				int frameW = 1098;
+				int frameH = 36;
+
+				int u = 0;
+				int v = frameH * bossHp.currentFrame;
+
+				int drawX = bossHp.x;
+				int drawY = bossHp.y;
+
+				// Novice::DrawBox(drawX, drawY, (int)player.base.width, (int)player.base.height, 0.0f, WHITE, kFillModeSolid);
+				Novice::DrawQuad(
+				    drawX , drawY ,                   // 左上 LT
+				    drawX + frameW, drawY ,          // 右上 RT
+				    drawX , drawY + frameH,          // 左下 LB
+				    drawX + frameW , drawY + frameH , // 右下 RB
+				    u, v, frameW, frameH, tex, WHITE);
 			}
+
 			break;
 		}
 
@@ -2478,11 +3021,8 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 			Novice::DrawSprite(drawX - 16, drawY - 15, playerHit, 1.0f, 1.0f, 0.0f, WHITE);
 			break;
 		}
-
-		
 		}
 		Novice::DrawEllipse((int)mouse.pos.x, (int)mouse.pos.y, 10, 10, 0.0f, GREEN, kFillModeSolid);
-		//	Novice::ScreenPrintf(0, 0, "Mouse: (%.1f, %.1f)", mouse.pos.x, mouse.pos.y);
 
 		///
 		/// ↑描画処理ここまで
